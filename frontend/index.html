@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>문서 오류 자동 검사</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page">
+    <section class="container">
+      <header class="header">
+        <h1>문서 오류 자동 검사</h1>
+        <p>문서를 업로드하고 문서 종류와 검사 항목을 선택하세요.</p>
+      </header>
+
+      <form id="inspectionForm">
+        <section class="card">
+          <h2>1. 문서 파일 업로드</h2>
+
+          <label class="file-button" for="documentFile">파일 선택</label>
+          <input
+            id="documentFile"
+            name="documentFile"
+            type="file"
+            accept=".docx,.pptx"
+          >
+
+          <p id="fileName" class="file-name">선택된 파일 없음</p>
+          <p class="help-text">현재 DOCX와 PPTX 파일을 지원합니다.</p>
+        </section>
+
+        <section class="card">
+          <h2>2. 문서 종류 선택</h2>
+
+          <div class="option-list">
+            <label>
+              <input type="radio" name="documentType" value="report">
+              보고서
+            </label>
+
+            <label>
+              <input type="radio" name="documentType" value="assignment">
+              수행평가
+            </label>
+
+            <label>
+              <input type="radio" name="documentType" value="general">
+              일반 문서
+            </label>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>3. 검사 항목 선택</h2>
+
+          <div class="option-list">
+            <label>
+              <input type="checkbox" name="inspectionItem" value="spelling">
+              맞춤법·띄어쓰기
+            </label>
+
+            <label>
+              <input type="checkbox" name="inspectionItem" value="font-family">
+              글꼴 종류
+            </label>
+
+            <label>
+              <input type="checkbox" name="inspectionItem" value="font-size">
+              글자 크기
+            </label>
+
+            <label>
+              <input type="checkbox" name="inspectionItem" value="alignment">
+              문단 정렬
+            </label>
+
+            <label>
+              <input type="checkbox" name="inspectionItem" value="line-spacing">
+              줄 간격
+            </label>
+          </div>
+        </section>
+
+        <div class="button-area">
+          <button type="submit" class="next-button">다음</button>
+        </div>
+
+        <p id="message" class="message" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
