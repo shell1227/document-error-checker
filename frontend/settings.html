@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>세부 검사 기준 설정</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page">
+    <section class="container">
+      <header class="header">
+        <h1>세부 검사 기준 설정</h1>
+        <p>선택한 검사 항목에 적용할 기준을 입력하세요.</p>
+      </header>
+
+      <section class="summary-card" aria-label="선택 내용 요약">
+        <div>
+          <span class="summary-label">선택한 문서</span>
+          <span id="summaryFile">문서 정보 없음</span>
+        </div>
+        <div>
+          <span class="summary-label">문서 종류</span>
+          <span id="summaryType">선택 정보 없음</span>
+        </div>
+      </section>
+
+      <form id="criteriaForm">
+        <section class="card criteria-section" id="spellingSection" hidden>
+          <h2>맞춤법·띄어쓰기</h2>
+          <p class="help-text">이 항목은 별도의 세부 기준 설정이 필요하지 않습니다.</p>
+        </section>
+
+        <section class="card criteria-section" id="textFormatSection" hidden>
+          <h2>1. 기본 글자 형식</h2>
+
+          <div class="form-grid">
+            <label class="field" id="fontFamilyField">
+              <span>기준 글꼴</span>
+              <input id="fontFamily" name="fontFamily" type="text" list="fontOptions" placeholder="예: 맑은 고딕">
+              <datalist id="fontOptions">
+                <option value="맑은 고딕"></option>
+                <option value="나눔고딕"></option>
+                <option value="굴림"></option>
+                <option value="돋움"></option>
+                <option value="바탕"></option>
+                <option value="Arial"></option>
+              </datalist>
+            </label>
+
+            <label class="field" id="fontSizeField">
+              <span>기준 글자 크기</span>
+              <div class="input-with-unit">
+                <input id="fontSize" name="fontSize" type="number" min="1" step="0.5" placeholder="10">
+                <span>pt</span>
+              </div>
+            </label>
+          </div>
+        </section>
+
+        <section class="card criteria-section" id="paragraphSection" hidden>
+          <h2>2. 문단 형식</h2>
+
+          <div class="form-grid">
+            <label class="field" id="alignmentField">
+              <span>기준 문단 정렬</span>
+              <select id="alignment" name="alignment">
+                <option value="">선택하세요</option>
+                <option value="left">왼쪽 정렬</option>
+                <option value="center">가운데 정렬</option>
+                <option value="right">오른쪽 정렬</option>
+                <option value="justify">양쪽 정렬</option>
+              </select>
+            </label>
+
+            <label class="field" id="lineSpacingField">
+              <span>기준 줄 간격</span>
+              <div class="input-with-unit">
+                <input id="lineSpacing" name="lineSpacing" type="number" min="1" step="1" placeholder="160">
+                <span>%</span>
+              </div>
+            </label>
+          </div>
+        </section>
+
+        <section class="card criteria-section" id="lengthSection" hidden>
+          <h2>3. 문서 분량</h2>
+          <p class="help-text">최소값이나 최대값 중 필요한 값만 입력해도 됩니다.</p>
+
+          <div class="form-grid two-columns">
+            <label class="field">
+              <span id="minLengthLabel">최소 페이지 수</span>
+              <input id="minLength" name="minLength" type="number" min="0" step="1" placeholder="3">
+            </label>
+
+            <label class="field">
+              <span id="maxLengthLabel">최대 페이지 수</span>
+              <input id="maxLength" name="maxLength" type="number" min="0" step="1" placeholder="10">
+            </label>
+          </div>
+        </section>
+
+        <section class="card criteria-section" id="requiredWordsSection" hidden>
+          <h2>4. 필수 단어 포함 여부</h2>
+          <p class="help-text">선택한 단어가 문서 안에 포함되어 있는지만 확인합니다.</p>
+
+          <div class="option-list compact-options">
+            <label>
+              <input type="checkbox" name="requiredWord" value="서론">
+              서론
+            </label>
+            <label>
+              <input type="checkbox" name="requiredWord" value="결론">
+              결론
+            </label>
+            <label>
+              <input type="checkbox" name="requiredWord" value="참고문헌">
+              참고문헌
+            </label>
+          </div>
+
+          <div class="custom-word-area">
+            <label class="field" for="customWord">
+              <span>직접 추가</span>
+              <div class="inline-control">
+                <input id="customWord" type="text" placeholder="예: 결과 및 분석">
+                <button id="addWordButton" type="button" class="secondary-button">추가</button>
+              </div>
+            </label>
+          </div>
+
+          <div id="customWordList" class="word-list" aria-live="polite"></div>
+        </section>
+
+        <section id="noCriteriaMessage" class="card info-card" hidden>
+          <p>선택한 검사 항목에는 별도의 세부 기준이 없습니다.</p>
+        </section>
+
+        <div class="navigation-buttons">
+          <button type="button" id="backButton" class="secondary-button">이전</button>
+          <button type="submit" class="next-button">검사 시작</button>
+        </div>
+
+        <p id="settingsMessage" class="message" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+
+  <script src="settings.js"></script>
+</body>
+</html>

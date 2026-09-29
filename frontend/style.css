@@ -7,6 +7,14 @@ body {
   font-family: Arial, "Noto Sans KR", sans-serif;
   background: #f4f6f8;
   color: #222;
+  font-weight: 400;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  font-weight: 400;
 }
 
 .page {
@@ -28,6 +36,7 @@ body {
 .header h1 {
   margin: 0 0 10px;
   font-size: 30px;
+  font-weight: 400;
 }
 
 .header p {
@@ -36,7 +45,8 @@ body {
   line-height: 1.5;
 }
 
-.card {
+.card,
+.summary-card {
   margin-bottom: 18px;
   padding: 24px;
   background: white;
@@ -47,6 +57,7 @@ body {
 .card h2 {
   margin: 0 0 18px;
   font-size: 19px;
+  font-weight: 400;
 }
 
 #documentFile {
@@ -74,6 +85,7 @@ body {
   margin: 0;
   color: #777;
   font-size: 14px;
+  line-height: 1.5;
 }
 
 .option-list {
@@ -89,24 +101,42 @@ body {
   cursor: pointer;
 }
 
+.compact-options {
+  margin-top: 18px;
+}
+
 .button-area {
   display: flex;
   justify-content: flex-end;
   margin-top: 6px;
 }
 
-.next-button {
+.next-button,
+.secondary-button {
   padding: 11px 28px;
-  border: 0;
   border-radius: 8px;
-  background: #222;
-  color: white;
   font-size: 16px;
   cursor: pointer;
 }
 
+.next-button {
+  border: 0;
+  background: #222;
+  color: white;
+}
+
 .next-button:hover {
   background: #444;
+}
+
+.secondary-button {
+  border: 1px solid #bbb;
+  background: #fff;
+  color: #222;
+}
+
+.secondary-button:hover {
+  background: #f0f0f0;
 }
 
 .message {
@@ -117,16 +147,149 @@ body {
   font-size: 14px;
 }
 
+.summary-card {
+  display: grid;
+  gap: 10px;
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
+.summary-card div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 14px;
+}
+
+.summary-label {
+  color: #777;
+}
+
+.form-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.form-grid.two-columns {
+  grid-template-columns: 1fr 1fr;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #bbb;
+  border-radius: 8px;
+  background: #fff;
+  color: #222;
+}
+
+.field input:focus,
+.field select:focus {
+  outline: 2px solid #d7d7d7;
+  outline-offset: 1px;
+  border-color: #777;
+}
+
+.input-with-unit {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.custom-word-area {
+  margin-top: 22px;
+}
+
+.inline-control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.inline-control .secondary-button {
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+.word-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.word-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px 7px 11px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.word-chip button {
+  padding: 3px 6px;
+  border: 0;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+}
+
+.info-card p {
+  margin: 0;
+  color: #666;
+}
+
+.navigation-buttons {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
 @media (max-width: 600px) {
   .page {
     padding: 28px 14px;
   }
 
-  .card {
+  .card,
+  .summary-card {
     padding: 20px;
   }
 
   .header h1 {
     font-size: 26px;
+  }
+
+  .form-grid.two-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-card div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .inline-control {
+    grid-template-columns: 1fr;
+  }
+
+  .navigation-buttons {
+    flex-direction: column;
+  }
+
+  .navigation-buttons button {
+    width: 100%;
   }
 }
