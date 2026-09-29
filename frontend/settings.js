@@ -123,7 +123,7 @@ function addCustomWord() {
   const word = customWord.value.trim();
 
   if (!word) {
-    showMessage("추가할 필수 단어를 입력하세요.", "error");
+    showMessage("추가할 필수 단어를 입력하세요.");
     customWord.focus();
     return;
   }
@@ -218,9 +218,9 @@ function validateCriteria() {
     }
 
     if (minText) {
-      const minLength = Number(minText);
+      const minValue = Number(minText);
 
-      if (!Number.isInteger(minLength) || minLength < 1) {
+      if (!Number.isInteger(minValue) || minValue < 1) {
         return {
           valid: false,
           message: `최소 ${unitName}는 1 이상의 정수로 입력하세요.`,
@@ -230,9 +230,9 @@ function validateCriteria() {
     }
 
     if (maxText) {
-      const maxLength = Number(maxText);
+      const maxValue = Number(maxText);
 
-      if (!Number.isInteger(maxLength) || maxLength < 1) {
+      if (!Number.isInteger(maxValue) || maxValue < 1) {
         return {
           valid: false,
           message: `최대 ${unitName}는 1 이상의 정수로 입력하세요.`,
@@ -250,16 +250,12 @@ function validateCriteria() {
     }
   }
 
-  if (hasItem("required-words")) {
-    const requiredWords = getSelectedRequiredWords();
-
-    if (requiredWords.length === 0) {
-      return {
-        valid: false,
-        message: "확인할 필수 단어를 하나 이상 선택하거나 추가하세요.",
-        field: document.querySelector('input[name="requiredWord"]')
-      };
-    }
+  if (hasItem("required-words") && getSelectedRequiredWords().length === 0) {
+    return {
+      valid: false,
+      message: "확인할 필수 단어를 하나 이상 선택하거나 추가하세요.",
+      field: document.querySelector('input[name="requiredWord"]')
+    };
   }
 
   return { valid: true };
@@ -324,7 +320,7 @@ criteriaForm.addEventListener("submit", (event) => {
   const validation = validateCriteria();
 
   if (!validation.valid) {
-    showMessage(validation.message, "error");
+    showMessage(validation.message);
 
     if (validation.field) {
       validation.field.focus();

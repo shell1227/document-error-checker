@@ -19,9 +19,9 @@ form.addEventListener("submit", (event) => {
   const selectedDocumentType = document.querySelector(
     'input[name="documentType"]:checked'
   );
-  const selectedInspectionItems = document.querySelectorAll(
-    'input[name="inspectionItem"]:checked'
-  );
+  const selectedInspectionItems = [
+    ...document.querySelectorAll('input[name="inspectionItem"]:checked')
+  ];
 
   if (!selectedFile) {
     message.textContent = "문서 파일을 선택하세요.";
@@ -45,5 +45,13 @@ form.addEventListener("submit", (event) => {
     return;
   }
 
-  message.textContent = "입력이 완료되었습니다. 다음 화면은 아직 구현되지 않았습니다.";
+  const setupData = {
+    fileName: selectedFile.name,
+    extension,
+    documentType: selectedDocumentType.value,
+    inspectionItems: selectedInspectionItems.map((item) => item.value)
+  };
+
+  sessionStorage.setItem("documentCheckerSetup", JSON.stringify(setupData));
+  window.location.href = "settings.html";
 });
