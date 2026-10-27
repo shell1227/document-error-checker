@@ -32,7 +32,14 @@ const documentReader = (() => {
     let zip;
     try { zip = await JSZip.loadAsync(await file.arrayBuffer()); }
     catch { throw new Error("문서를 열 수 없습니다. 암호화되지 않은 정상 DOCX·PPTX 파일인지 확인하세요."); }
-    const read = (path, required) => xml(zip, path, required);
+    const cache = new Map();
+    const read = (path, required = false) => {
+      if (!cache.has(path)) cache.set(path, xml(zip, path));
+      return cache.get(path).then((doc) => {
+        if (!doc && required) throw new Error(`필수 문서 정보가 없습니다: ${path}`);
+        return doc;
+      });
+    };
     const result = extension === "docx" ? await readDocx(read) : extension === "pptx" ? await readPptx(read) : null;
     if (!result) throw new Error("지원하지 않는 파일 형식입니다.");
     return { fileName: file.name, format: extension, ...result };

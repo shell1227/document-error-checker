@@ -1,6 +1,16 @@
 // 문서 텍스트는 HTML로 해석하지 않고 textContent로만 표시합니다.
 function renderInspection(report) {
   const names = { pass: "기준 일치", fail: "불일치", unknown: "검사 불가" };
+  // 화면에는 읽기 쉬운 출처를, 다운로드 JSON에는 원래 파일 경로를 보존합니다.
+  const sourceLabel = (source) => source
+    .replace(/ppt\/presentation\.xml\/defaultTextStyle/g, "프레젠테이션 기본 서식")
+    .replace(/ppt\/slideMasters\/[^/]+/g, "마스터")
+    .replace(/ppt\/slideLayouts\/[^/]+/g, "레이아웃")
+    .replace(/ppt\/slides\/[^/]+/g, "슬라이드")
+    .replace(/ppt\/theme\/[^/]+/g, "테마")
+    .replace(/titleStyle/g, "제목 스타일").replace(/bodyStyle/g, "본문 스타일").replace(/otherStyle/g, "기타 텍스트 스타일")
+    .replace(/lvl(\d)pPr/g, "$1수준 서식").replace(/placeholder\[body\]/g, "본문 자리 표시자").replace(/placeholder\[title\]/g, "제목 자리 표시자")
+    .replace(/DrawingML 기본값/g, "표준 기본값");
   const container = document.getElementById("inspectionResults");
   container.replaceChildren();
   const scope = document.createElement("p");
@@ -12,7 +22,8 @@ function renderInspection(report) {
     section.className = "inspection-item";
     const heading = document.createElement("h3");
     heading.className = `inspection-${item.status}`;
-    heading.textContent = `${item.label}: ${names[item.status]}`;
+    const statusLabel = item.status === "unknown" && item.counts.pass > 0 ? "일부 검사 불가" : names[item.status];
+    heading.textContent = `${item.label}: ${statusLabel}`;
     const summary = document.createElement("p");
     summary.textContent = `기준 일치 ${item.counts.pass}건 · 불일치 ${item.counts.fail}건 · 검사 불가 ${item.counts.unknown}건`;
     const disclosure = document.createElement("details");
@@ -26,7 +37,7 @@ function renderInspection(report) {
     for (const row of sorted.slice(0, 200)) {
       const li = document.createElement("li");
       const text = row.text ? ` · 텍스트: ${row.text.slice(0, 100)}` : "";
-      li.textContent = `[${names[row.status]}] ${row.location} · 기준: ${row.expected} · 추출: ${row.actual}${row.reason ? ` · 사유: ${row.reason}` : ""}${text}`;
+      li.textContent = `[${names[row.status]}] ${row.location} · 기준: ${row.expected} · 추출: ${row.actual}${row.reason ? ` · 사유: ${row.reason}` : ""}${row.source ? ` · 근거: ${sourceLabel(row.source)}` : ""}${text}`;
       list.appendChild(li);
     }
     disclosure.appendChild(list);

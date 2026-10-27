@@ -35,6 +35,23 @@ const documentInspector = (() => {
     return [...groups];
   }
 
+  function pptxScripts(text, settings) {
+    const scripts = new Set();
+    // 한자의 테마 글꼴은 언어 정보가 있어야 한국어/일본어/중국어를 구분할 수 있습니다.
+    const language = [settings.altLang, settings.lang].find((value) => /^(ko|ja|zh)(-|$)/i.test(value || "")) || "";
+    const han = /^ko/i.test(language) ? "Hang" : /^ja/i.test(language) ? "Jpan"
+      : /^zh-(CN|SG|Hans)(-|$)/i.test(language) ? "Hans" : /^zh-(TW|HK|MO|Hant)(-|$)/i.test(language) ? "Hant" : "Han";
+    for (const character of text) {
+      if (/\s/u.test(character)) continue;
+      if (/\p{Script=Hangul}/u.test(character)) scripts.add("Hang");
+      else if (/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(character)) scripts.add("Jpan");
+      else if (/\p{Script=Han}/u.test(character)) scripts.add(han);
+      else if (character.codePointAt(0) >= 33 && character.codePointAt(0) <= 126) scripts.add("latin");
+      else scripts.add("other");
+    }
+    return [...scripts];
+  }
+
   function checkFonts(document, list, criteria) {
     const rows = [];
     const expected = criteria.fontFamily;
@@ -48,6 +65,17 @@ const documentInspector = (() => {
           return;
         }
         const fonts = run.fontSettings || {};
+        if (document.format === "pptx" && run.resolvedFonts) {
+          const scriptNames = { Hang: "한글", Jpan: "일본어", Hans: "중국어 간체", Hant: "중국어 번체", latin: "기본 영문·기호", Han: "언어 미확정 한자", other: "기타 문자" };
+          for (const script of pptxScripts(run.text, fonts)) {
+            const resolved = run.resolvedFonts[script];
+            const scope = `${location} (${scriptNames[script]})`;
+            rows.push(resolved?.name
+              ? { ...compare(scope, expected, resolved.name, fontName(expected) === fontName(resolved.name), run.text), source: resolved.source }
+              : unknown(scope, expected, "문자별 테마 글꼴·언어 또는 상속 연결을 확정할 수 없습니다.", run.text));
+          }
+          return;
+        }
         for (const group of fontGroups(run.text)) {
           const key = document.format === "docx" && group === "latin" ? "ascii" : group;
           const theme = document.format === "docx" ? fonts[`${key}Theme`] : null;
@@ -76,9 +104,10 @@ const documentInspector = (() => {
           if (!run.text.trim()) return;
           const location = `${p.location} · 글자 묶음 ${index + 1}`;
           const reasons = run.formatUncertainReasons || p.formatUncertainReasons || [];
-          if (reasons.length || run.automaticFit || !validNumber(run.fontSizePt) || !validNumber(criteria.fontSize) || fontGroups(run.text).includes("other")) {
+          if (reasons.length || (run.automaticFit && !run.fontSizeResolved) || !validNumber(run.fontSizePt) || !validNumber(criteria.fontSize) || (document.format === "docx" && fontGroups(run.text).includes("other"))) {
             rows.push(unknown(location, expected, reasons.join(" ") || "글자 크기 누락, 자동 맞춤 또는 지원하지 않는 문자 서식으로 크기를 확정할 수 없습니다.", run.text));
-          } else rows.push(compare(location, expected, `${run.fontSizePt} pt`, equalNumber(run.fontSizePt, criteria.fontSize), run.text));
+          } else rows.push({ ...compare(location, expected, `${run.fontSizePt} pt`, equalNumber(run.fontSizePt, criteria.fontSize), run.text),
+            source: run.formatSources?.fontSizePt ? `${run.formatSources.fontSizePt}${run.automaticFit ? ` · 파일 기준 축소율 ${run.fontScale * 100}% · ${run.formatSources.fit}` : ""}` : undefined });
         });
         continue;
       }
@@ -91,14 +120,14 @@ const documentInspector = (() => {
           ? { left: "left", center: "center", right: "right", both: "justify" }
           : { l: "left", ctr: "center", r: "right", just: "justify" };
         const actual = map[p.alignment];
-        rows.push(actual && expected
+        rows.push({ ...(actual && expected
           ? compare(p.location, expected, alignmentNames[actual], actual === criteria.alignment, p.text)
-          : unknown(p.location, expected, "정렬 값이 없거나 방향 의존·배분 정렬 등 현재 비교하지 않는 값입니다.", p.text));
+          : unknown(p.location, expected, "정렬 값이 없거나 방향 의존·배분 정렬 등 현재 비교하지 않는 값입니다.", p.text)), source: p.formatSources?.alignment });
       } else {
         const spacing = p.lineSpacing;
-        rows.push(spacing?.unit === "percent" && validNumber(spacing.value) && validNumber(criteria.lineSpacing)
+        rows.push({ ...(spacing?.unit === "percent" && validNumber(spacing.value) && validNumber(criteria.lineSpacing)
           ? compare(p.location, expected, `${spacing.value}%`, equalNumber(spacing.value, criteria.lineSpacing), p.text)
-          : unknown(p.location, expected, spacing?.unit === "pt" ? "고정·최소 줄 간격(pt)은 사용자가 입력한 % 기준으로 정확히 환산할 수 없습니다." : "줄 간격 값을 확인할 수 없습니다.", p.text));
+          : unknown(p.location, expected, spacing?.unit === "pt" ? "고정·최소 줄 간격(pt)은 사용자가 입력한 % 기준으로 정확히 환산할 수 없습니다." : "줄 간격 또는 자동 맞춤 축소율을 확인할 수 없습니다.", p.text)), source: p.formatSources?.lineSpacing });
       }
     }
     return rows;

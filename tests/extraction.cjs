@@ -24,8 +24,8 @@ async function main() {
   const pptx = await zip({
     "ppt/presentation.xml": `<p:presentation xmlns:p="${p}" xmlns:r="${rel}"><p:sldIdLst><p:sldId id="256" r:id="second"/><p:sldId id="257" r:id="first"/></p:sldIdLst></p:presentation>`,
     "ppt/_rels/presentation.xml.rels": `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="first" Type="${rel}/slide" Target="slides/slide1.xml"/><Relationship Id="second" Type="${rel}/slide" Target="slides/slide2.xml"/></Relationships>`,
-    "ppt/slides/slide1.xml": `<p:sld xmlns:p="${p}" xmlns:a="${a}"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>마지막</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`,
-    "ppt/slides/slide2.xml": `<p:sld xmlns:p="${p}" xmlns:a="${a}"><p:cSld><p:spTree><p:sp><p:txBody><a:lstStyle><a:lvl1pPr><a:defRPr sz="1800"/></a:lvl1pPr></a:lstStyle><a:p><a:pPr algn="ctr"><a:lnSpc><a:spcPct val="120000"/></a:lnSpc></a:pPr><a:r><a:rPr sz="2400"><a:ea typeface="맑은 고딕"/></a:rPr><a:t>첫 슬라이드</a:t></a:r><a:br/><a:fld><a:t>필드</a:t></a:fld></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`
+    "ppt/slides/slide1.xml": `<p:sld xmlns:p="${p}" xmlns:a="${a}"><p:cSld><p:spTree><p:sp><p:txBody><a:bodyPr><a:noAutofit/></a:bodyPr><a:p><a:r><a:t>마지막</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`,
+    "ppt/slides/slide2.xml": `<p:sld xmlns:p="${p}" xmlns:a="${a}"><p:cSld><p:spTree><p:sp><p:txBody><a:bodyPr><a:noAutofit/></a:bodyPr><a:lstStyle><a:lvl1pPr><a:defRPr sz="1800"/></a:lvl1pPr></a:lstStyle><a:p><a:pPr algn="ctr"><a:lnSpc><a:spcPct val="120000"/></a:lnSpc></a:pPr><a:r><a:rPr sz="2400"><a:ea typeface="맑은 고딕"/></a:rPr><a:t>첫 슬라이드</a:t></a:r><a:br/><a:fld><a:t>필드</a:t></a:fld></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`
   });
   const server = http.createServer((req, res) => {
     const filename = path.resolve(root, "." + (req.url === "/" ? "/index.html" : req.url));
@@ -66,7 +66,7 @@ async function main() {
     assert.equal(data.text, "서론\t본문추가\n표 내용");
     assert.equal(data.pageCount, null);
     await page.locator("#inspectionSection").waitFor({ state: "visible" });
-    assert.ok((await page.locator("#inspectionResults").textContent()).includes("글꼴: 검사 불가"));
+    assert.ok((await page.locator("#inspectionResults").textContent()).includes("글꼴: 일부 검사 불가"));
     assert.ok((await page.locator("#inspectionResults").textContent()).includes("필수 단어: 기준 일치"));
     await page.locator("#fontFamily").fill("바탕");
     assert.equal(await page.locator("#inspectionSection").isVisible(), false);
@@ -102,7 +102,7 @@ async function main() {
     await page.getByRole("button", { name: "검사 시작", exact: true }).click();
     await page.locator("#inspectionSection").waitFor({ state: "visible" });
     const inspectionText = await page.locator("#inspectionResults").textContent();
-    for (const expected of ["글자 크기: 불일치", "문단 정렬: 검사 불가", "줄 간격: 검사 불가", "문서 분량: 기준 일치", "필수 단어: 불일치", "맞춤법·띄어쓰기: 검사 불가", "슬라이드 1 · 문단 1"]) {
+    for (const expected of ["글자 크기: 불일치", "문단 정렬: 일부 검사 불가", "줄 간격: 일부 검사 불가", "문서 분량: 기준 일치", "필수 단어: 불일치", "맞춤법·띄어쓰기: 검사 불가", "슬라이드 1 · 문단 1"]) {
       assert.ok(inspectionText.includes(expected), expected);
     }
     const downloadEvent = page.waitForEvent("download");
@@ -112,6 +112,29 @@ async function main() {
     if (process.env.INSPECTION_SCREENSHOT) {
       await page.locator("#inspectionSection").scrollIntoViewIfNeeded();
       await page.screenshot({ path: process.env.INSPECTION_SCREENSHOT });
+    }
+    if (process.env.PPTX_SAMPLE) {
+      await page.goto(base);
+      await page.locator("#documentFile").setInputFiles(process.env.PPTX_SAMPLE);
+      await page.locator('[value="general"]').check();
+      for (const id of ["font-family", "font-size", "alignment", "line-spacing"]) await page.locator(`[name="inspectionItem"][value="${id}"]`).check();
+      await page.getByRole("button", { name: "다음", exact: true }).click();
+      await page.waitForURL("**/settings.html");
+      await page.locator("#fontFamily").fill("맑은 고딕");
+      await page.locator("#fontSize").fill("32");
+      await page.locator("#alignment").selectOption("left");
+      await page.locator("#lineSpacing").fill("100");
+      await page.getByRole("button", { name: "검사 시작", exact: true }).click();
+      await page.locator("#inspectionSection").waitFor({ state: "visible" });
+      if (process.env.PPTX_DEFAULT_SAMPLE === "1") {
+        const text = await page.locator("#inspectionResults").textContent();
+        for (const expected of ["글꼴: 기준 일치", "글자 크기: 불일치", "문단 정렬: 불일치", "줄 간격: 기준 일치", "근거:"]) assert.ok(text.includes(expected), expected);
+        assert.ok(!text.includes("[검사 불가]"));
+      }
+      if (process.env.INSPECTION_SCREENSHOT) {
+        await page.locator("#inspectionSection").scrollIntoViewIfNeeded();
+        await page.screenshot({ path: process.env.INSPECTION_SCREENSHOT });
+      }
     }
     for (const [name, buffer, format] of [["broken.docx", Buffer.from("invalid"), "docx"],
       ["badxml.docx", await zip({ "word/document.xml": "<broken>" }), "docx"],

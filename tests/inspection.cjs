@@ -49,4 +49,13 @@ for (const id of ["font-family", "font-size", "alignment", "line-spacing"]) {
 }
 assert.equal(item(docx(), "spelling", {}).status, "unknown");
 assert.equal(context.inspect(docx(), ["font-size"], { fontSize: 10 }).items.length, 1);
+const themeFonts = { Hang: { name: "맑은 고딕", source: "theme/Hang" }, Jpan: { name: "Yu Gothic", source: "theme/Jpan" }, latin: { name: "Arial", source: "theme/latin" } };
+const inherited = { ...pptx, slides: [{ number: 1, paragraphs: [paragraph({ text: "한글かなABC", runs: [run("한글かなABC", { resolvedFonts: themeFonts })] })] }] };
+const inheritedItem = item(inherited, "font-family", { fontFamily: "맑은 고딕" });
+assert.equal(inheritedItem.counts.pass, 1);
+assert.equal(inheritedItem.counts.fail, 2);
+const unclassifiedHan = { ...pptx, slides: [{ number: 1, paragraphs: [paragraph({ text: "漢字", runs: [run("漢字", { resolvedFonts: themeFonts })] })] }] };
+assert.equal(item(unclassifiedHan, "font-family", { fontFamily: "맑은 고딕" }).status, "unknown");
+const scaled = { ...pptx, slides: [{ number: 1, paragraphs: [paragraph({ runs: [run("본문", { fontSizePt: 20.8, automaticFit: true, fontSizeResolved: true, fontScale: 0.8 })] })] }] };
+assert.equal(item(scaled, "font-size", { fontSize: 20.8 }).status, "pass");
 console.log("PASS: inspection comparisons, inclusive limits, mixed scripts, partial failures, unknown values, units and incomplete extraction");
