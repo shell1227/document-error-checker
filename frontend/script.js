@@ -12,7 +12,7 @@ fileInput.addEventListener("change", () => {
   fileName.textContent = `선택된 파일: ${fileInput.files[0].name}`;
 });
 
-form.addEventListener("submit", (event) => {
+form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const selectedFile = fileInput.files[0];
@@ -52,6 +52,16 @@ form.addEventListener("submit", (event) => {
     inspectionItems: selectedInspectionItems.map((item) => item.value)
   };
 
-  sessionStorage.setItem("documentCheckerSetup", JSON.stringify(setupData));
-  window.location.href = "settings.html";
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    if (selectedFile.size > 20 * 1024 * 1024) throw new Error("현재는 20MB 이하 파일을 선택하세요.");
+    setupData.fileId = await documentFileStore.save(selectedFile);
+    sessionStorage.setItem("documentCheckerSetup", JSON.stringify(setupData));
+    sessionStorage.removeItem("documentCheckerCriteria");
+    sessionStorage.removeItem("documentCheckerInspectionConfig");
+    window.location.href = "settings.html";
+  } catch (error) {
+    message.textContent = error.message;
+  } finally { button.disabled = false; }
 });

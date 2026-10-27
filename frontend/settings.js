@@ -1,5 +1,7 @@
 const setupRaw = sessionStorage.getItem("documentCheckerSetup");
-const setup = setupRaw ? JSON.parse(setupRaw) : null;
+let setup = null;
+try { setup = setupRaw ? JSON.parse(setupRaw) : null; }
+catch { sessionStorage.removeItem("documentCheckerSetup"); }
 
 const summaryFile = document.getElementById("summaryFile");
 const summaryType = document.getElementById("summaryType");
@@ -313,7 +315,18 @@ backButton.addEventListener("click", () => {
   window.location.href = "index.html";
 });
 
-criteriaForm.addEventListener("submit", (event) => {
+let extractedDocument = null;
+document.getElementById("downloadExtraction").addEventListener("click", () => {
+  if (!extractedDocument) return;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(extractedDocument, null, 2)], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${setup.fileName}.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+criteriaForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   clearMessage();
 
@@ -331,6 +344,11 @@ criteriaForm.addEventListener("submit", (event) => {
 
   const criteriaData = buildCriteriaData();
 
+  const button = criteriaForm.querySelector('button[type="submit"]');
+  button.disabled = true;
+  extractedDocument = null;
+  document.getElementById("extractionSection").hidden = true;
+  try {
   sessionStorage.setItem(
     "documentCheckerCriteria",
     JSON.stringify(criteriaData)
@@ -344,8 +362,26 @@ criteriaForm.addEventListener("submit", (event) => {
     })
   );
 
-  showMessage(
-    "검사 기준이 저장되었습니다. 실제 문서 검사 기능은 아직 구현되지 않았습니다.",
-    "success"
-  );
+  showMessage("검사 기준이 저장되었습니다. 문서 정보를 읽고 있습니다.", "success");
+  const file = await documentFileStore.load(setup?.fileId);
+  extractedDocument = await documentReader.extract(file, setup?.extension);
+  document.getElementById("extractedText").value = extractedDocument.text;
+  document.getElementById("extractionSummary").textContent = extractedDocument.format === "pptx"
+    ? `슬라이드 ${extractedDocument.slideCount}개 · 텍스트 ${extractedDocument.text.length}자`
+    : `문단 ${extractedDocument.paragraphs.length}개 · 텍스트 ${extractedDocument.text.length}자`;
+  const warnings = document.getElementById("extractionWarnings");
+  warnings.replaceChildren();
+  extractedDocument.warnings.forEach((warning) => {
+    const item = document.createElement("li");
+    item.textContent = warning;
+    warnings.appendChild(item);
+  });
+  const json = JSON.stringify(extractedDocument, null, 2);
+  document.getElementById("extractionData").textContent = json.length > 100000
+    ? json.slice(0, 100000) + "\n… 화면 표시를 줄였습니다. 전체 정보는 다운로드하세요." : json;
+  document.getElementById("extractionSection").hidden = false;
+  showMessage("문서 정보 추출이 완료되었습니다. 오류 판정은 아직 수행하지 않습니다.", "success");
+  } catch (error) {
+    showMessage(error.message || "문서 정보를 읽지 못했습니다.");
+  } finally { button.disabled = false; }
 });
