@@ -95,6 +95,8 @@ function showMessage(text, type = "error") {
 function clearMessage() {
   settingsMessage.textContent = "";
   settingsMessage.classList.remove("success-message", "error-message");
+  document.getElementById("inspectionSection").hidden = true;
+  inspectionReport = null;
 }
 
 function renderCustomWords() {
@@ -316,14 +318,21 @@ backButton.addEventListener("click", () => {
 });
 
 let extractedDocument = null;
-document.getElementById("downloadExtraction").addEventListener("click", () => {
-  if (!extractedDocument) return;
-  const url = URL.createObjectURL(new Blob([JSON.stringify(extractedDocument, null, 2)], { type: "application/json" }));
+let inspectionReport = null;
+function downloadJson(data, name) {
+  if (!data) return;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${setup.fileName}.json`;
+  link.download = name;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+document.getElementById("downloadExtraction").addEventListener("click", () => {
+  downloadJson(extractedDocument, `${setup.fileName}.json`);
+});
+document.getElementById("downloadInspection").addEventListener("click", () => {
+  downloadJson(inspectionReport, `${setup.fileName}.inspection.json`);
 });
 
 criteriaForm.addEventListener("submit", async (event) => {
@@ -349,38 +358,43 @@ criteriaForm.addEventListener("submit", async (event) => {
   extractedDocument = null;
   document.getElementById("extractionSection").hidden = true;
   try {
-  sessionStorage.setItem(
-    "documentCheckerCriteria",
-    JSON.stringify(criteriaData)
-  );
+    sessionStorage.setItem(
+      "documentCheckerCriteria",
+      JSON.stringify(criteriaData)
+    );
 
-  sessionStorage.setItem(
-    "documentCheckerInspectionConfig",
-    JSON.stringify({
-      setup,
-      criteria: criteriaData
-    })
-  );
+    sessionStorage.setItem(
+      "documentCheckerInspectionConfig",
+      JSON.stringify({
+        setup,
+        criteria: criteriaData
+      })
+    );
 
-  showMessage("검사 기준이 저장되었습니다. 문서 정보를 읽고 있습니다.", "success");
-  const file = await documentFileStore.load(setup?.fileId);
-  extractedDocument = await documentReader.extract(file, setup?.extension);
-  document.getElementById("extractedText").value = extractedDocument.text;
-  document.getElementById("extractionSummary").textContent = extractedDocument.format === "pptx"
-    ? `슬라이드 ${extractedDocument.slideCount}개 · 텍스트 ${extractedDocument.text.length}자`
-    : `문단 ${extractedDocument.paragraphs.length}개 · 텍스트 ${extractedDocument.text.length}자`;
-  const warnings = document.getElementById("extractionWarnings");
-  warnings.replaceChildren();
-  extractedDocument.warnings.forEach((warning) => {
-    const item = document.createElement("li");
-    item.textContent = warning;
-    warnings.appendChild(item);
-  });
-  const json = JSON.stringify(extractedDocument, null, 2);
-  document.getElementById("extractionData").textContent = json.length > 100000
-    ? json.slice(0, 100000) + "\n… 화면 표시를 줄였습니다. 전체 정보는 다운로드하세요." : json;
-  document.getElementById("extractionSection").hidden = false;
-  showMessage("문서 정보 추출이 완료되었습니다. 오류 판정은 아직 수행하지 않습니다.", "success");
+    showMessage("검사 기준이 저장되었습니다. 문서 정보를 읽고 있습니다.", "success");
+    const file = await documentFileStore.load(setup?.fileId);
+    extractedDocument = await documentReader.extract(file, setup?.extension);
+    if (JSON.stringify(criteriaData) !== JSON.stringify(buildCriteriaData())) {
+      throw new Error("문서를 읽는 동안 검사 기준이 변경되었습니다. 다시 검사 시작을 눌러주세요.");
+    }
+    document.getElementById("extractedText").value = extractedDocument.text;
+    document.getElementById("extractionSummary").textContent = extractedDocument.format === "pptx"
+      ? `슬라이드 ${extractedDocument.slideCount}개 · 텍스트 ${extractedDocument.text.length}자`
+      : `문단 ${extractedDocument.paragraphs.length}개 · 텍스트 ${extractedDocument.text.length}자`;
+    const warnings = document.getElementById("extractionWarnings");
+    warnings.replaceChildren();
+    extractedDocument.warnings.forEach((warning) => {
+      const item = document.createElement("li");
+      item.textContent = warning;
+      warnings.appendChild(item);
+    });
+    const json = JSON.stringify(extractedDocument, null, 2);
+    document.getElementById("extractionData").textContent = json.length > 100000
+      ? json.slice(0, 100000) + "\n… 화면 표시를 줄였습니다. 전체 정보는 다운로드하세요." : json;
+    document.getElementById("extractionSection").hidden = false;
+    inspectionReport = documentInspector.inspect(extractedDocument, selectedItems, criteriaData);
+    renderInspection(inspectionReport);
+    showMessage("검사가 완료되었습니다. 불일치와 검사 불가 항목을 확인하세요.", "success");
   } catch (error) {
     showMessage(error.message || "문서 정보를 읽지 못했습니다.");
   } finally { button.disabled = false; }

@@ -18,6 +18,8 @@ async function readDocx(read) {
     }
     const size = n(a(c(properties, "w", "sz"), "val"), 2);
     if (size !== null) result.fontSizePt = size;
+    // 복합 문자/오른쪽→왼쪽 글꼴 선택은 현재 해석하지 않습니다.
+    if (c(properties, "w", "cs") || c(properties, "w", "rtl")) result.complexScript = true;
     return result;
   }
   function paragraphFormat(properties) {
@@ -40,11 +42,39 @@ async function readDocx(read) {
   const defaultRun = runFormat(c(c(defaults, "w", "rPrDefault"), "w", "rPr"));
   const defaultParagraph = paragraphFormat(c(c(defaults, "w", "pPrDefault"), "w", "pPr"));
   const paragraphs = [];
+  const textLimitations = new Set();
+  let textUncertain = false;
+  function hasAncestor(node, name) {
+    for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+      if (parent.localName === name) return true;
+    }
+    return false;
+  }
+  function incompleteStyle(id, seen = new Set()) {
+    if (!id) return false;
+    if (seen.has(id) || !styles.has(id)) return true;
+    seen.add(id);
+    return incompleteStyle(a(c(styles.get(id), "w", "basedOn"), "val"), seen);
+  }
   function readPart(part, source) {
+    if (!part) { textLimitations.add("참조된 문서 부분을 읽지 못했습니다."); return; }
+    const unsupported = ["footnoteReference", "endnoteReference", "drawing", "pict", "object", "altChunk", "sym", "fldChar", "instrText"];
+    if (unsupported.some((name) => all(part, "w", name).length) || part.getElementsByTagNameNS("*", "oMath").length) {
+      textLimitations.add("각주·미주·그림·개체·필드·수식 등 일부 내용의 전체 텍스트는 확인하지 못합니다.");
+    }
+    if (["ins", "del", "moveFrom", "moveTo"].some((name) => all(part, "w", name).length)) {
+      textUncertain = true;
+      textLimitations.add("변경 추적의 최종 표시 내용을 확정하지 못합니다.");
+    }
     all(part, "w", "p").forEach((p, index) => {
       const properties = c(p, "w", "pPr");
       const styleId = a(c(properties, "w", "pStyle"), "val") || a(defaultStyle, "styleId");
       const chain = styleChain(styleId);
+      const formatUncertainReasons = [];
+      if (hasAncestor(p, "tc")) formatUncertainReasons.push("표의 조건부 서식을 해석하지 못합니다.");
+      if (c(properties, "w", "numPr") || chain.some((s) => c(c(s, "w", "pPr"), "w", "numPr"))) formatUncertainReasons.push("번호 목록 서식 상속을 해석하지 못합니다.");
+      if (incompleteStyle(styleId)) formatUncertainReasons.push("스타일 참조가 없거나 순환합니다.");
+      if (all(p, "w", "pPrChange").length || ["ins", "del", "moveFrom", "moveTo"].some((name) => hasAncestor(p, name) || all(p, "w", name).length)) formatUncertainReasons.push("변경 추적 서식을 확정하지 못합니다.");
       const pf = merge(defaultParagraph, ...chain.map((s) => paragraphFormat(c(s, "w", "pPr"))), paragraphFormat(properties));
       const runs = all(p, "w", "r").filter((r) => {
         let parent = r.parentElement;
@@ -56,11 +86,14 @@ async function readDocx(read) {
           ...styleChain(a(c(rp, "w", "rStyle"), "val")).map((s) => runFormat(c(s, "w", "rPr"))), runFormat(rp));
         const text = [...r.children].map((node) => node.localName === "t" ? node.textContent : node.localName === "tab" ? "\t" : ["br", "cr"].includes(node.localName) ? "\n" : "").join("");
         const fontFamily = format.eastAsiaTheme ? null : format.eastAsia || (format.asciiTheme ? null : format.ascii || format.hAnsi || null);
-        return { text, fontFamily,
+        const runUncertainReasons = [...formatUncertainReasons];
+        if (incompleteStyle(a(c(rp, "w", "rStyle"), "val"))) runUncertainReasons.push("문자 스타일 참조를 해석하지 못합니다.");
+        if (format.complexScript || all(r, "w", "rPrChange").length) runUncertainReasons.push("복합 문자 또는 변경 추적 서식을 해석하지 못합니다.");
+        return { text, fontFamily, formatUncertainReasons: runUncertainReasons,
           fontSizePt: format.fontSizePt ?? null, fontSettings: format };
       }).filter((r) => r.text);
       const line = n(pf.line);
-      paragraphs.push({ source, index: index + 1, styleId: styleId || null,
+      paragraphs.push({ source, index: index + 1, styleId: styleId || null, formatUncertainReasons,
         text: runs.map((r) => r.text).join(""), alignment: pf.alignment ?? null,
         lineSpacing: line === null ? null : { value: line / ((pf.lineRule || "auto") === "auto" ? 2.4 : 20),
           unit: (pf.lineRule || "auto") === "auto" ? "percent" : "pt", rule: pf.lineRule || "auto" },
@@ -77,6 +110,7 @@ async function readDocx(read) {
     }
   }
   return { text: paragraphs.map((p) => p.text).join("\n"), paragraphs,
+    textLimitations: [...textLimitations], textUncertain,
     pageCount: null, warnings: ["페이지 수는 문서를 실제 배치해야 정확하므로 추출하지 않습니다.",
       "스타일 상속과 직접 서식을 읽습니다. 테마 글꼴 참조는 fontSettings에 보존하며 최종 글꼴로 확정하지 않습니다.",
       "표·번호 목록의 조건부 서식, 변경 추적, 각주·미주·수식·이미지 텍스트는 완전하게 해석하지 않습니다. null은 확인할 수 없는 값입니다."] };

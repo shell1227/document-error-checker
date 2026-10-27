@@ -65,6 +65,14 @@ async function main() {
     assert.equal(data.paragraphs[1].lineSpacing.value, 15);
     assert.equal(data.text, "서론\t본문추가\n표 내용");
     assert.equal(data.pageCount, null);
+    await page.locator("#inspectionSection").waitFor({ state: "visible" });
+    assert.ok((await page.locator("#inspectionResults").textContent()).includes("글꼴: 검사 불가"));
+    assert.ok((await page.locator("#inspectionResults").textContent()).includes("필수 단어: 기준 일치"));
+    await page.locator("#fontFamily").fill("바탕");
+    assert.equal(await page.locator("#inspectionSection").isVisible(), false);
+    await page.getByRole("button", { name: "검사 시작", exact: true }).click();
+    await page.locator("#inspectionSection").waitFor({ state: "visible" });
+    assert.ok((await page.locator("#inspectionResults").textContent()).includes("글꼴: 불일치"));
     const result = await page.evaluate(async (bytes) => {
       return documentReader.extract(new File([new Uint8Array(bytes)], "sample.pptx"), "pptx");
     }, [...pptx]);
@@ -75,6 +83,36 @@ async function main() {
     assert.equal(result.slides[0].paragraphs[0].lineSpacing.value, 120);
     assert.equal(result.slides[1].paragraphs[0].runs[0].fontSizePt, null);
     assert.equal(result.slides[1].text, "마지막");
+    // PPTX도 실제 업로드 화면부터 전체 항목 검사까지 확인합니다.
+    await page.goto(base);
+    await page.locator("#documentFile").setInputFiles({ name: "sample.pptx", mimeType: "application/octet-stream", buffer: pptx });
+    await page.locator('[value="general"]').check();
+    for (const id of ["font-family", "font-size", "alignment", "line-spacing", "page-count", "required-words", "spelling"]) {
+      await page.locator(`[name="inspectionItem"][value="${id}"]`).check();
+    }
+    await page.getByRole("button", { name: "다음", exact: true }).click();
+    await page.waitForURL("**/settings.html");
+    await page.locator("#fontFamily").fill("맑은 고딕");
+    await page.locator("#fontSize").fill("24");
+    await page.locator("#alignment").selectOption("center");
+    await page.locator("#lineSpacing").fill("120");
+    await page.locator("#minLength").fill("2");
+    await page.locator("#maxLength").fill("2");
+    await page.locator('[name="requiredWord"][value="서론"]').check();
+    await page.getByRole("button", { name: "검사 시작", exact: true }).click();
+    await page.locator("#inspectionSection").waitFor({ state: "visible" });
+    const inspectionText = await page.locator("#inspectionResults").textContent();
+    for (const expected of ["글자 크기: 불일치", "문단 정렬: 검사 불가", "줄 간격: 검사 불가", "문서 분량: 기준 일치", "필수 단어: 불일치", "맞춤법·띄어쓰기: 검사 불가", "슬라이드 1 · 문단 1"]) {
+      assert.ok(inspectionText.includes(expected), expected);
+    }
+    const downloadEvent = page.waitForEvent("download");
+    await page.locator("#downloadInspection").click();
+    const download = await downloadEvent;
+    assert.equal(download.suggestedFilename(), "sample.pptx.inspection.json");
+    if (process.env.INSPECTION_SCREENSHOT) {
+      await page.locator("#inspectionSection").scrollIntoViewIfNeeded();
+      await page.screenshot({ path: process.env.INSPECTION_SCREENSHOT });
+    }
     for (const [name, buffer, format] of [["broken.docx", Buffer.from("invalid"), "docx"],
       ["badxml.docx", await zip({ "word/document.xml": "<broken>" }), "docx"],
       ["wrong.pptx", docx, "pptx"]]) {

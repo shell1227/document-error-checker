@@ -323,3 +323,11 @@ select {
 #extractionSection details { margin: 20px 0; }
 #extractionWarnings { padding-left: 20px; line-height: 1.6; }
 button:disabled { opacity: 0.6; cursor: wait; }
+
+.inspection-item { border-top: 1px solid #ddd; margin: 20px 0; padding-top: 8px; }
+.inspection-item h3 { font-size: 17px; font-weight: 400; }
+.inspection-item li { margin: 12px 0; line-height: 1.6; overflow-wrap: anywhere; }
+.inspection-item ul { padding-left: 20px; }
+.inspection-pass { color: #177245; }
+.inspection-fail { color: #b00020; }
+.inspection-unknown { color: #805600; }
