@@ -132,6 +132,28 @@ python-pptx 기본 템플릿의 제목·본문·일반 텍스트 상자가 있�
 한글 테마 글꼴, 정렬, 100% 줄 간격의 기대값과 UI 결과도 검증할 수 있습니다.
 Python/python-pptx는 이 선택적 테스트에만 필요합니다.
 
+### 여섯 항목 통합 검증
+
+`node tests/document-matrix.cjs`는 DOCX/PPTX ZIP을 메모리에서 생성해 실제 추출기와
+비교기를 함께 검증합니다. 글꼴·크기·정렬·줄 간격·분량·필수 단어에 대해 일치,
+불일치, 검사 불가를 확인하며, DOCX 페이지 수는 항상 검사 불가를 기대합니다.
+숨김 슬라이드를 포함한 분량, 글자 묶음 사이에 나뉜 단어, 빈 텍스트, 고정 pt 간격,
+잘못된 직접 크기, 복합 문자 설정의 on/off, 머리글의 실제 참조/누락도 검증합니다.
+
+DOCX 실파일 샘플은 `python tests/generate-docx-sample.py <임시 DOCX 경로>`로 만듭니다.
+이 선택적 생성에는 python-docx가 필요합니다. `DOCX_SAMPLE` 환경 변수에 생성 경로를
+설정하면 통합 검증과 업로드 화면 테스트가 이 파일도 사용합니다.
+DOCX 샘플에는 12pt·왼쪽 정렬·160%의 본문과 같은 기본 서식을 사용하는 머리글이 있습니다.
+PPTX 샘플과 함께 사용하면 두 형식의 파일 선택→기준 설정→결과 표시 흐름을 확인합니다.
+
+2026-10-27 검증 중 DOCX 세 가지 문제를 수정했습니다.
+- 잘못된 직접 글자 크기를 상위 스타일 값으로 대체해 일치로 오판하던 문제
+- 섹션이 참조하지 않는 머리글/바닥글의 내용을 단어 검사에 포함하던 문제
+- cs/rtl 설정이 명시적으로 꺼져 있어도 요소 존재만으로 검사 불가 처리하던 문제
+
+모든 테스트는 로컬 브라우저에서 수행합니다. 생성 샘플은 Office의 모든 문서를
+대표하지 않으며, Word/PowerPoint의 실제 렌더링 결과와 비교하는 테스트는 아닙니다.
+
 서식 해석 참고: [자리 표시자 상속](https://python-pptx.readthedocs.io/en/latest/user/placeholders-understanding.html),
 [Microsoft 자동 맞춤 축소율 규격](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.drawing.normalautofit.fontscale),
 [Apache POI 문단 서식 구현](https://github.com/apache/poi/blob/trunk/poi-ooxml/src/main/java/org/apache/poi/xslf/usermodel/XSLFTextParagraph.java).

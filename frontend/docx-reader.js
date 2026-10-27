@@ -16,10 +16,17 @@ async function readDocx(read) {
       if (result[theme]) result[direct] = null;
       else if (result[direct]) result[theme] = null;
     }
-    const size = n(a(c(properties, "w", "sz"), "val"), 2);
-    if (size !== null) result.fontSizePt = size;
-    // 복합 문자/오른쪽→왼쪽 글꼴 선택은 현재 해석하지 않습니다.
-    if (c(properties, "w", "cs") || c(properties, "w", "rtl")) result.complexScript = true;
+    const sizeElement = c(properties, "w", "sz");
+    // 직접 값이 잘못되었으면 상위 스타일의 정상 값으로 덮지 않습니다.
+    if (sizeElement) result.fontSizePt = n(a(sizeElement, "val"), 2);
+    // 요소가 존재해도 val="0"/"false"이면 꺼진 설정입니다.
+    for (const [tag, key] of [["cs", "useComplexScript"], ["rtl", "rightToLeft"]]) {
+      const element = c(properties, "w", tag);
+      if (!element) continue;
+      const value = a(element, "val");
+      result[key] = value === null || ["1", "true", "on"].includes(value) ? true
+        : ["0", "false", "off"].includes(value) ? false : null;
+    }
     return result;
   }
   function paragraphFormat(properties) {
@@ -84,11 +91,12 @@ async function readDocx(read) {
         const rp = c(r, "w", "rPr");
         const format = merge(defaultRun, ...chain.map((s) => runFormat(c(s, "w", "rPr"))),
           ...styleChain(a(c(rp, "w", "rStyle"), "val")).map((s) => runFormat(c(s, "w", "rPr"))), runFormat(rp));
+        format.complexScript = !!(format.useComplexScript || format.rightToLeft);
         const text = [...r.children].map((node) => node.localName === "t" ? node.textContent : node.localName === "tab" ? "\t" : ["br", "cr"].includes(node.localName) ? "\n" : "").join("");
         const fontFamily = format.eastAsiaTheme ? null : format.eastAsia || (format.asciiTheme ? null : format.ascii || format.hAnsi || null);
         const runUncertainReasons = [...formatUncertainReasons];
         if (incompleteStyle(a(c(rp, "w", "rStyle"), "val"))) runUncertainReasons.push("문자 스타일 참조를 해석하지 못합니다.");
-        if (format.complexScript || all(r, "w", "rPrChange").length) runUncertainReasons.push("복합 문자 또는 변경 추적 서식을 해석하지 못합니다.");
+        if (format.complexScript || format.useComplexScript === null || format.rightToLeft === null || all(r, "w", "rPrChange").length) runUncertainReasons.push("복합 문자 또는 변경 추적 서식을 해석하지 못합니다.");
         return { text, fontFamily, formatUncertainReasons: runUncertainReasons,
           fontSizePt: format.fontSizePt ?? null, fontSettings: format };
       }).filter((r) => r.text);
@@ -101,12 +109,20 @@ async function readDocx(read) {
     });
   }
   readPart(doc, "word/document.xml");
-  // 관계 파일에 참조된 머리글·바닥글을 읽습니다.
+  // 관계 목록에 남은 미사용 부분이 아니라, 실제 섹션이 참조하는 부분만 읽습니다.
   const rels = await read("word/_rels/document.xml.rels");
-  for (const rel of [...(rels?.documentElement.children || [])]) {
-    if (/\/(header|footer)$/.test(a(rel, "Type") || "") && a(rel, "TargetMode") !== "External") {
+  const relationships = new Map([...(rels?.documentElement.children || [])].map((rel) => [a(rel, "Id"), rel]));
+  const visited = new Set();
+  for (const kind of ["header", "footer"]) {
+    for (const reference of all(doc, "w", `${kind}Reference`)) {
+      const id = a(reference, "id");
+      const rel = relationships.get(id);
+      if (!rel || !(a(rel, "Type") || "").endsWith(`/${kind}`) || a(rel, "TargetMode") === "External" || !a(rel, "Target")) {
+        textLimitations.add("참조된 머리글·바닥글의 연결 정보를 확인하지 못했습니다.");
+        continue;
+      }
       const path = new URL(a(rel, "Target"), "https://document.local/word/document.xml").pathname.slice(1);
-      readPart(await read(path), path);
+      if (!visited.has(path)) { readPart(await read(path), path); visited.add(path); }
     }
   }
   return { text: paragraphs.map((p) => p.text).join("\n"), paragraphs,

@@ -136,6 +136,24 @@ async function main() {
         await page.screenshot({ path: process.env.INSPECTION_SCREENSHOT });
       }
     }
+    if (process.env.DOCX_SAMPLE) {
+      await page.goto(base);
+      await page.locator("#documentFile").setInputFiles(process.env.DOCX_SAMPLE);
+      await page.locator('[value="report"]').check();
+      for (const id of ["font-family", "font-size", "alignment", "line-spacing", "page-count", "required-words"]) await page.locator(`[name="inspectionItem"][value="${id}"]`).check();
+      await page.getByRole("button", { name: "다음", exact: true }).click();
+      await page.waitForURL("**/settings.html");
+      await page.locator("#fontFamily").fill("맑은 고딕");
+      await page.locator("#fontSize").fill("12");
+      await page.locator("#alignment").selectOption("left");
+      await page.locator("#lineSpacing").fill("160");
+      await page.locator("#minLength").fill("1");
+      await page.locator('[name="requiredWord"][value="서론"]').check();
+      await page.getByRole("button", { name: "검사 시작", exact: true }).click();
+      await page.locator("#inspectionSection").waitFor({ state: "visible" });
+      const text = await page.locator("#inspectionResults").textContent();
+      for (const expected of ["글꼴: 기준 일치", "글자 크기: 기준 일치", "문단 정렬: 기준 일치", "줄 간격: 기준 일치", "문서 분량: 검사 불가", "필수 단어: 기준 일치"]) assert.ok(text.includes(expected), expected);
+    }
     for (const [name, buffer, format] of [["broken.docx", Buffer.from("invalid"), "docx"],
       ["badxml.docx", await zip({ "word/document.xml": "<broken>" }), "docx"],
       ["wrong.pptx", docx, "pptx"]]) {

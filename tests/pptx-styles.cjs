@@ -66,6 +66,13 @@ async function main() {
     assert.equal(missingData.slides[0].paragraphs[0].runs[0].fontSizePt, null);
     assert.equal(missingData.slides[0].paragraphs[0].alignment, null);
     assert.equal(missingData.slides[0].paragraphs[3].runs[0].fontSizePt, 20.8);
+    const missingMaster = fixture();
+    delete missingMaster["ppt/slideMasters/master7.xml"];
+    const partialInheritance = (await extract(missingMaster)).slides[0].paragraphs[0];
+    assert.equal(partialInheritance.runs[0].fontSizePt, 22); // 레이아웃의 명시 값은 사용 가능
+    assert.equal(partialInheritance.alignment, "ctr");
+    assert.equal(partialInheritance.lineSpacing, null); // 마스터가 없으므로 기본 100%로 추정 금지
+    assert.equal(partialInheritance.runs[0].resolvedFonts.Hang, null);
     const duplicate = fixture();
     duplicate["ppt/slideLayouts/layout9.xml"] = duplicate["ppt/slideLayouts/layout9.xml"].replace('idx="99"', 'idx="7"');
     assert.equal((await extract(duplicate)).slides[0].paragraphs[0].runs[0].fontSizePt, null);
