@@ -7,6 +7,7 @@
 - 세부 설정에서 검사 기준 검증 및 sessionStorage 저장
 - '검사 시작'을 누르면 문서 정보를 추출하여 같은 화면 아래에 표시
 - 추출 텍스트, 문단별 글꼴·크기·정렬·줄 간격 확인 및 전체 JSON 다운로드
+- Supabase 연결 시 검사 완료 후 기록 자동 저장, 이전 기록의 기준·결과 조회
 
 선택한 글꼴·글자 크기·정렬·줄 간격·분량·필수 단어 기준과 추출 정보를 비교합니다.
 맞춤법·띄어쓰기는 아직 구현하지 않아 선택해도 검사 불가로 표시합니다.
@@ -20,6 +21,9 @@ Python이 있다면 저장소에서 `python -m http.server 8000 --directory fron
 
 Vercel 설정: Root Directory `frontend`, Preset `Other`, Build Command 빈 값,
 Output Directory `.`. 환경 변수는 필요하지 않습니다.
+Supabase는 `frontend/supabase-config.js`의 공개 설정 두 개로 연결합니다.
+설정이 비어 있거나 연결에 실패해도 문서 검사는 동작합니다.
+프로젝트 생성부터 SQL/RLS·익명 인증·연결 확인까지는 [Supabase 설정 순서](supabase/README.md)를 참고하세요.
 
 ## 파일 전달과 코드 역할
 
@@ -32,10 +36,18 @@ Output Directory `.`. 환경 변수는 필요하지 않습니다.
 - `settings.js`: 기존 기준 저장 및 추출 결과 표시
 - `document-inspector.js`: 화면과 독립적인 기준 비교
 - `inspection-view.js`: 항목별 결과와 불일치/검사 불가 사유 표시
+- `history-store.js`: Supabase 익명 인증·자동 저장·기록 목록/상세 조회
+- `history-save.js`: 검사 결과와 독립적인 저장 상태 및 재시도
+- `history.html`, `history.js`: 이전 검사 기록 화면
+- `supabase-config.js`: 공개 Project URL / publishable key (현재 비어 있음)
+- `supabase/setup.sql`: 기록 테이블과 사용자별 SELECT/INSERT RLS 정책
 
 파일은 서버로 업로드하지 않습니다. IndexedDB는 탭을 닫아도 남을 수 있으며,
 브라우저 사이트 데이터 삭제로 지울 수 있습니다. 새 탭에서 시작할 때는
 첫 화면에서 파일을 다시 선택하세요. 현재 입력 파일 크기는 최대 20MB입니다.
+Supabase가 설정된 경우 파일명·검사 시각·기준·상세 결과는 DB에 저장합니다.
+상세 결과에는 문서 일부 텍스트가 포함됩니다. 원본 파일과 전체 추출 데이터는 전송하지 않습니다.
+현재는 같은 브라우저/사이트 주소의 익명 인증 세션에서만 과거 기록을 볼 수 있습니다.
 
 ## 추출 데이터와 한계
 
@@ -112,6 +124,16 @@ Output Directory `.`. 환경 변수는 필요하지 않습니다.
 [JSZip 3.10.1](https://github.com/Stuk/jszip/tree/v3.10.1)입니다.
 MIT 라이선스로 사용하며 원본 라이선스를 같은 폴더에 포함했습니다.
 로컬 파일로 제공하므로 실행 중 CDN 연결이 필요하지 않습니다.
+
+`frontend/vendor/supabase.min.js`는 공식 `@supabase/supabase-js` 2.118.0 브라우저 번들입니다.
+인증·세션 갱신·DB 요청을 직접 구현하지 않기 위해 추가했으며 MIT 라이선스를 함께 포함합니다.
+프로젝트 실행에 npm 설치나 별도 빌드는 필요하지 않습니다.
+
+`node tests/history.cjs`는 실제 SDK와 모의 Auth/PostgREST API로 DOCX/PPTX 자동 저장,
+목록/상세/다운로드, 세션 갱신, 페이지 이동, 재시도·중복 방지, 연결 실패와 검사 기능의
+독립성을 확인합니다. 실제 Supabase DB에 접속하거나 SQL/RLS 정책을 검증하는 테스트는 아닙니다.
+연결 설정 후에는 `node tests/supabase-live.cjs`로 실제 저장/조회와 두 사용자의 RLS 격리를
+검증할 수 있습니다. 현재 공개 연결값이 없어 실제 API 테스트는 아직 실행할 수 없습니다.
 
 `tests/extraction.cjs`는 테스트 ZIP을 메모리에서 만들고 Playwright와 Edge로
 추출값·파일 전달·실패 안내를 확인합니다. Node.js, Playwright 및 Edge가 있는 환경에서

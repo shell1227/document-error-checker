@@ -331,3 +331,16 @@ button:disabled { opacity: 0.6; cursor: wait; }
 .inspection-pass { color: #177245; }
 .inspection-fail { color: #b00020; }
 .inspection-unknown { color: #805600; }
+
+.history-save-message { margin: 18px 0 12px; }
+.history-list { list-style: none; padding: 0; }
+.history-list li { padding: 16px 0; border-top: 1px solid #ddd; }
+.history-open { width: 100%; text-align: left; overflow-wrap: anywhere; }
+.history-list p { font-size: 14px; line-height: 1.6; }
+#historyCriteria { display: grid; grid-template-columns: 130px 1fr; gap: 12px; padding: 12px; background: #f4f6f8; }
+#historyCriteria dd { margin: 0; overflow-wrap: anywhere; }
+#historyCriteria dt { color: #666; }
+#historyMessage { color: #555; }
+#historyRecordInfo { overflow-wrap: anywhere; }
+#previousHistory:disabled, #nextHistory:disabled { cursor: default; }
+@media (max-width: 600px) { #historyCriteria { grid-template-columns: 1fr; } }

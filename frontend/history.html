@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>이전 검사 기록</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page"><section class="container">
+    <header class="header"><h1>이전 검사 기록</h1><p>이 브라우저에서 저장한 검사 기록을 확인하세요.</p></header>
+    <section class="card">
+      <p class="help-text">같은 사이트 주소와 브라우저에서 기록을 다시 볼 수 있습니다. 브라우저 데이터를 지우거나 다른 기기를 사용하면 이전 기록에 접근할 수 없습니다.</p>
+      <div class="navigation-buttons"><a href="index.html">새 문서 검사</a><button type="button" id="reloadHistory" class="secondary-button">새로고침</button></div>
+      <p id="historyMessage" class="message" aria-live="polite"></p>
+      <ul id="historyList" class="history-list"></ul>
+      <div class="navigation-buttons"><button type="button" id="previousHistory" class="secondary-button" disabled>이전 20개</button><button type="button" id="nextHistory" class="secondary-button" disabled>다음 20개</button></div>
+    </section>
+    <section id="historyDetail" class="card" hidden>
+      <h2>저장된 검사 기준</h2><p id="historyRecordInfo"></p>
+      <dl id="historyCriteria"></dl>
+      <button type="button" id="downloadHistory" class="secondary-button">저장된 기록 다운로드</button>
+    </section>
+    <section id="inspectionSection" class="card" hidden><h2>저장된 검사 결과</h2><div id="inspectionResults"></div></section>
+  </section></main>
+  <script src="vendor/supabase.min.js"></script>
+  <script src="supabase-config.js"></script>
+  <script src="history-store.js"></script>
+  <script src="inspection-view.js"></script>
+  <script src="history.js"></script>
+</body>
+</html>

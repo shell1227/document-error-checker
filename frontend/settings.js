@@ -97,6 +97,7 @@ function clearMessage() {
   settingsMessage.classList.remove("success-message", "error-message");
   document.getElementById("inspectionSection").hidden = true;
   inspectionReport = null;
+  inspectionSaving.reset();
 }
 
 function renderCustomWords() {
@@ -395,6 +396,7 @@ criteriaForm.addEventListener("submit", async (event) => {
     inspectionReport = documentInspector.inspect(extractedDocument, selectedItems, criteriaData);
     renderInspection(inspectionReport);
     showMessage("검사가 완료되었습니다. 불일치와 검사 불가 항목을 확인하세요.", "success");
+    inspectionSaving.save(inspectionReport, setup);
   } catch (error) {
     showMessage(error.message || "문서 정보를 읽지 못했습니다.");
   } finally { button.disabled = false; }

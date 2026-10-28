@@ -12,6 +12,7 @@
       <header class="header">
         <h1>세부 검사 기준 설정</h1>
         <p>선택한 검사 항목에 적용할 기준을 입력하세요.</p>
+        <p><a href="history.html">이전 검사 기록 보기</a></p>
       </header>
 
       <section class="summary-card" aria-label="선택 내용 요약">
@@ -26,6 +27,7 @@
       </section>
 
       <form id="criteriaForm">
+        <p class="help-text">Supabase 연결 시 검사 완료 후 파일명·검사 시각·기준·결과(문서 일부 텍스트 포함)를 저장합니다. 원본 문서 파일은 저장하지 않습니다.</p>
         <section class="card criteria-section" id="spellingSection" hidden>
           <h2>맞춤법·띄어쓰기</h2>
           <p class="help-text">이 항목은 별도의 세부 기준 설정이 필요하지 않습니다.</p>
@@ -147,6 +149,8 @@
         <h2>검사 결과</h2>
         <div id="inspectionResults"></div>
         <button type="button" id="downloadInspection" class="secondary-button">검사 결과 다운로드</button>
+        <p id="saveHistoryMessage" class="help-text history-save-message" aria-live="polite"></p>
+        <button type="button" id="retrySaveHistory" class="secondary-button" hidden>기록 저장 다시 시도</button>
       </section>
       <section id="extractionSection" class="card" hidden aria-live="polite">
         <h2>문서 정보 추출 결과</h2>
@@ -173,6 +177,10 @@
   <script src="pptx-reader.js"></script>
   <script src="document-inspector.js"></script>
   <script src="inspection-view.js"></script>
+  <script src="vendor/supabase.min.js"></script>
+  <script src="supabase-config.js"></script>
+  <script src="history-store.js"></script>
+  <script src="history-save.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>
