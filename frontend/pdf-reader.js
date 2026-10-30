@@ -96,6 +96,10 @@ async function readPdf(file) {
   } catch (error) {
     if (error.name === "PasswordException") throw new Error("암호로 보호된 PDF는 현재 읽을 수 없습니다. 암호가 없는 사본을 선택하세요.");
     if (/너무|500페이지/.test(error.message || "")) throw error;
-    throw new Error("PDF를 읽지 못했습니다. 정상적인 PDF인지 확인하세요.", { cause: error });
+    if (["TypeError", "ReferenceError"].includes(error.name)) {
+      throw new Error("PDF 읽기 도구에서 내부 오류가 발생했습니다. 페이지를 새로고침하고 최신 배포가 반영되었는지 확인하세요.", { cause: error });
+    }
+    if (error.name === "InvalidPDFException") throw new Error("PDF 파일 구조를 읽을 수 없습니다. 다른 PDF 뷰어에서 정상적으로 열리는지 확인하세요.", { cause: error });
+    throw new Error("PDF 정보를 읽지 못했습니다. 파일 형식 또는 PDF 읽기 도구의 상태를 확인하세요.", { cause: error });
   } finally { await task.destroy(); }
 }

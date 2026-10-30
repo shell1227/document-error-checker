@@ -36,3 +36,13 @@ Arial 같은 가족 이름으로 대응합니다. 임의의 접미사는 잘라�
 실제 Supabase는 SQL Editor에서 `supabase/add-hwpx-pdf.sql` 실행이 필요합니다.
 프론트엔드 테스트의 모의 API는 실제 DB 제약이나 RLS를 증명하지 않습니다.
 SQL 실행 후 실제 사이트에서 HWPX/PDF 저장 및 이전 기록 상세를 확인해야 합니다.
+
+개별 파일의 문제를 재현할 때는 다음 명령을 사용합니다. 원본 PDF는 수정하거나 외부로 보내지 않습니다.
+
+```powershell
+node tests/pdf-file.cjs "C:/경로/검사할문서.pdf"
+```
+
+두 번째 인수에 다른 `pdf-reader.js` 경로를 지정하면 같은 라이브러리로 이전 코드와 비교할 수 있습니다.
+2026-10-30 확인한 배포본은 PDF.js 6.4.299에서 없는 `getGroups()`를 호출했습니다.
+로컬 수정본은 iterator를 사용합니다. `Ready` 여부뿐 아니라 최신 커밋이 Production으로 배포됐는지 확인해야 합니다.

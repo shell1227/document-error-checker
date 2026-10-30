@@ -93,6 +93,18 @@ async function main() {
     }
     await assert.rejects(() => extract("encrypted.pdf"), /암호/);
     await assert.rejects(() => page.evaluate(() => documentReader.extract(new File(["invalid"], "broken.pdf"), "pdf")), /PDF/);
+    // 라이브러리 내부 TypeError를 문서 손상으로 오안내하지 않는지 확인합니다.
+    const faultContext = await browser.newContext();
+    try {
+      await faultContext.route("**/vendor/pdfjs/pdf.min.mjs", (route) => route.fulfill({ contentType: "text/javascript",
+        body: 'export const GlobalWorkerOptions={}; export function getDocument(){return {promise:Promise.reject(new TypeError("library API failure")),destroy:async()=>{}};}' }));
+      const faultPage = await faultContext.newPage();
+      await faultPage.goto(`${base}/index.html`);
+      await faultPage.addScriptTag({ url: `${base}/pdf-reader.js` });
+      const message = await faultPage.evaluate(async () => { try { await readPdf(new File(["test"], "test.pdf")); } catch (e) { return e.message; } });
+      assert.ok(message.includes("내부 오류"), message);
+      assert.ok(!message.includes("정상적인 PDF"));
+    } finally { await faultContext.close(); }
     const download = page.waitForEvent("download");
     await page.locator("#downloadInspection").click();
     assert.equal((await download).suggestedFilename(), "korean.pdf.inspection.json");
