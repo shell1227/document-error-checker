@@ -70,12 +70,13 @@ async function main() {
   const hwpxZip = new JSZip();
   for (const [name, value] of Object.entries(require("./hwpx-fixture.cjs")())) hwpxZip.file(name, value);
   const hwpxFile = await hwpxZip.generateAsync({ type: "nodebuffer" });
+  const pdfFile = require("./pdf-fixture.cjs")();
   const server = http.createServer((req, res) => {
     const filename = path.resolve(root, "." + (req.url === "/" ? "/index.html" : req.url));
     if (!filename.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
     fs.readFile(filename, (error, data) => {
       if (error) { res.writeHead(404).end(); return; }
-      res.setHeader("Content-Type", filename.endsWith(".js") ? "text/javascript" : filename.endsWith(".css") ? "text/css" : "text/html");
+      res.setHeader("Content-Type", /\.m?js$/.test(filename) ? "text/javascript" : filename.endsWith(".css") ? "text/css" : "text/html");
       res.end(data);
     });
   });
@@ -91,12 +92,15 @@ async function main() {
     page.on("pageerror", (error) => errors.push(error.message));
     async function inspect(format = "docx", target = page) {
       await target.goto(base);
-      await target.locator("#documentFile").setInputFiles({ name: `sample.${format}`, mimeType: "application/octet-stream", buffer: format === "pptx" ? pptxFile : format === "hwpx" ? hwpxFile : file });
+      await target.locator("#documentFile").setInputFiles({ name: `sample.${format}`, mimeType: "application/octet-stream", buffer: format === "pptx" ? pptxFile : format === "hwpx" ? hwpxFile : format === "pdf" ? pdfFile : file });
       await target.locator('[value="report"]').check();
       await target.locator('[value="required-words"][name="inspectionItem"]').check();
       await target.getByRole("button", { name: "다음", exact: true }).click();
       await target.waitForURL("**/settings.html");
-      await target.locator('[name="requiredWord"][value="서론"]').check();
+      if (format === "pdf") {
+        await target.locator("#customWord").fill("Introduction");
+        await target.locator("#addWordButton").click();
+      } else await target.locator('[name="requiredWord"][value="서론"]').check();
       await target.getByRole("button", { name: "검사 시작", exact: true }).click();
       await target.locator("#inspectionSection").waitFor({ state: "visible" });
       assert.ok((await target.locator("#inspectionResults").textContent()).includes("필수 단어: 기준 일치"));
@@ -177,9 +181,18 @@ async function main() {
     await page.getByRole("button", { name: /sample.hwpx/ }).click();
     await page.locator("#historyDetail").waitFor({ state: "visible" });
     assert.ok((await page.locator("#inspectionResults").textContent()).includes("필수 단어: 기준 일치"));
+    await inspect("pdf");
+    await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("저장했습니다"));
+    assert.equal(records.at(-1).file_format, "pdf");
+    assert.equal(records.at(-1).result.format, "pdf");
+    assert.deepEqual(records.at(-1).criteria.requiredWords, ["Introduction"]);
+    await page.goto(`${base}/history.html`);
+    await page.getByRole("button", { name: /sample.pdf/ }).click();
+    await page.locator("#historyDetail").waitFor({ state: "visible" });
+    assert.ok((await page.locator("#inspectionResults").textContent()).includes("필수 단어: 기준 일치"));
     mode = "old-format-constraint";
-    await inspect("hwpx");
-    await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("add-hwpx.sql"));
+    await inspect("pdf");
+    await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("add-hwpx-pdf.sql"));
     assert.equal(await page.locator("#inspectionSection").isVisible(), true);
     mode = "ok";
     await page.locator("#retrySaveHistory").click();
@@ -221,7 +234,7 @@ async function main() {
     assert.ok(authMessage.includes("익명 로그인을 활성화"), authMessage);
     await authFailure.close();
     assert.deepEqual(errors, []);
-    console.log("PASS: DOCX/PPTX/HWPX mocked Supabase save/load, criteria/results, migration failure recovery, auth refresh, paging, identity boundary, retry/deduplication and disconnected inspection");
+    console.log("PASS: DOCX/PPTX/HWPX/PDF mocked Supabase save/load, criteria/results, migration failure recovery, auth refresh, paging, identity boundary, retry/deduplication and disconnected inspection");
   } finally { await browser.close(); await new Promise((resolve) => server.close(resolve)); }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

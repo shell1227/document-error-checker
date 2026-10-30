@@ -15,8 +15,10 @@ async function readPdf(file) {
   try {
     const pdf = await task.promise;
     if (pdf.numPages > 500) throw new Error("현재 PDF는 500페이지 이하만 검사할 수 있습니다.");
-    const optional = await pdf.getOptionalContentConfig();
-    if (Object.keys(optional.getGroups() || {}).length) {
+    let optional;
+    try { optional = await pdf.getOptionalContentConfig(); }
+    catch { textUncertain = true; limitations.add("PDF 레이어 정보를 읽지 못했습니다."); }
+    if (optional && [...optional].length) {
       textUncertain = true;
       limitations.add("선택적 레이어가 있어 최종 표시 텍스트를 확정하지 못합니다.");
     }
@@ -25,7 +27,13 @@ async function readPdf(file) {
       const page = await pdf.getPage(pageNumber);
       try {
         const content = await page.getTextContent();
-        const operators = await page.getOperatorList(); // 지정 글꼴 정보가 준비된 뒤 조회합니다.
+        let operators;
+        try { operators = await page.getOperatorList(); } // 지정 글꼴 정보가 준비된 뒤 조회합니다.
+        catch {
+          operators = { fnArray: [], argsArray: [] };
+          textUncertain = true;
+          limitations.add(`페이지 ${pageNumber}: 그리기 정보를 읽지 못해 글꼴과 텍스트 표시 여부를 확정하지 못합니다.`);
+        }
         if (operators.fnArray.length > 300000) throw new Error("PDF 페이지의 구성 요소가 너무 많습니다.");
         const ops = pdfjs.OPS;
         if (operators.fnArray.some((id) => [ops.paintImageXObject, ops.paintInlineImageXObject,
@@ -49,7 +57,7 @@ async function readPdf(file) {
           const t = item.transform;
           const widthScale = Math.hypot(t[0], t[1]), heightScale = Math.hypot(t[2], t[3]);
           const orthogonal = widthScale > 0 && heightScale > 0 && Math.abs(t[0] * t[2] + t[1] * t[3]) / (widthScale * heightScale) < 0.001;
-          const sizeKnown = orthogonal && Math.abs(widthScale - heightScale) < 0.001 && !style?.vertical && !font?.isType3Font;
+          const sizeKnown = orthogonal && Math.abs(widthScale - heightScale) < 0.001 && !style?.vertical && font && !font.isType3Font && !font.isInvalidPDFjsFont;
           const fontSizePt = sizeKnown ? Math.round(heightScale * page.userUnit * 1000) / 1000 : null;
           if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffd\ue000-\uf8ff]/u.test(item.str)) {
             textUncertain = true;
@@ -64,7 +72,7 @@ async function readPdf(file) {
           previous = item;
           if (!item.str.trim()) continue;
           const run = { text: item.str, fontFamily, rawFontName: rawName,
-            fontNameKnown: Boolean(fontFamily && !/^(g_d\d|sans-serif$|serif$|monospace$)/i.test(fontFamily) && !font?.isType3Font),
+            fontNameKnown: Boolean(fontFamily && !fontFamily.includes("\ufffd") && !/^(g_d\d|sans-serif$|serif$|monospace$)/i.test(fontFamily) && !font?.isType3Font && !font?.isInvalidPDFjsFont),
             fontSizePt, transform: [...t], x: t[4], y: t[5], width: item.width, height: item.height };
           paragraphs.push({ source: `페이지 ${pageNumber} · 텍스트 조각`, index: ++index,
             text: item.str, runs: [run], alignment: null, lineSpacing: null });
@@ -88,6 +96,6 @@ async function readPdf(file) {
   } catch (error) {
     if (error.name === "PasswordException") throw new Error("암호로 보호된 PDF는 현재 읽을 수 없습니다. 암호가 없는 사본을 선택하세요.");
     if (/너무|500페이지/.test(error.message || "")) throw error;
-    throw new Error("PDF를 읽지 못했습니다. 정상적인 PDF인지 확인하세요.");
+    throw new Error("PDF를 읽지 못했습니다. 정상적인 PDF인지 확인하세요.", { cause: error });
   } finally { await task.destroy(); }
 }

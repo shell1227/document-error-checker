@@ -27,6 +27,6 @@ node tests/hwpx.cjs "$env:TEMP/document-checker-hancom.hwpx"
 - https://tech.hancom.com/python-hwpx-parsing-1/
 - https://tech.hancom.com/python-hwpx-parsing-2/
 
-실제 DB는 기존 프로젝트에서 `supabase/add-hwpx.sql` 실행이 필요합니다.
+실제 DB는 기존 프로젝트에서 최신 `supabase/add-hwpx-pdf.sql` 실행이 필요합니다.
 그다음 같은 브라우저에서 HWPX를 검사해 저장 안내와 기록 목록/상세를 확인하세요.
 RLS를 끄거나 전체 사용자 공개 정책을 추가할 필요는 없습니다.

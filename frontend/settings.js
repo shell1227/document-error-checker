@@ -58,6 +58,11 @@ if (setup) {
 }
 
 const hasItem = (name) => selectedItems.includes(name);
+if (setup?.extension === "pdf") {
+  const notice = document.getElementById("formatNotice");
+  notice.hidden = false;
+  notice.textContent = "PDF는 페이지 수·추출 텍스트·지정 글꼴·확인 가능한 크기를 검사합니다. 문단 정렬과 % 줄 간격은 검사 불가이며 스캔 문서 OCR은 지원하지 않습니다.";
+}
 
 spellingSection.hidden = !hasItem("spelling");
 

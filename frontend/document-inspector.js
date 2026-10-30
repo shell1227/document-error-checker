@@ -17,7 +17,13 @@ const documentInspector = (() => {
   const compare = (location, expected, actual, equal, text = "") => ({ status: equal ? "pass" : "fail", location, expected, actual, text });
   function pdfFontName(name) {
     const compact = fontName(name).replace(/[\s_-]/g, "");
-    const known = { arialmt: "arial", timesnewromanpsmt: "timesnewroman", "맑은고딕": "malgungothic" };
+    // 알려진 PostScript 이름만 글꼴 가족 이름에 대응합니다. 임의의 접미사는 자르지 않습니다.
+    const known = { arialmt: "arial", arialboldmt: "arial", arialitalicmt: "arial", arialbolditalicmt: "arial",
+      helveticabold: "helvetica", helveticaoblique: "helvetica", helveticaboldoblique: "helvetica",
+      timesroman: "times", timesbold: "times", timesitalic: "times", timesbolditalic: "times",
+      timesnewromanpsmt: "timesnewroman", timesnewromanpsboldmt: "timesnewroman", timesnewromanpsitalicmt: "timesnewroman", timesnewromanpsbolditalicmt: "timesnewroman",
+      courierbold: "courier", courieroblique: "courier", courierboldoblique: "courier",
+      malgungothicbold: "malgungothic", "맑은고딕": "malgungothic" };
     return known[compact] || compact;
   }
 
