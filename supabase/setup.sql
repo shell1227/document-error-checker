@@ -3,7 +3,7 @@ create table if not exists public.inspection_records (
   id uuid primary key,
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   file_name text not null check (char_length(file_name) between 1 and 512),
-  file_format text not null check (file_format in ('docx', 'pptx')),
+  file_format text not null check (file_format in ('docx', 'pptx', 'hwpx', 'pdf')),
   inspected_at timestamptz not null,
   created_at timestamptz not null default now(),
   document_type text not null check (document_type in ('report', 'assignment', 'general')),
@@ -29,4 +29,4 @@ drop policy if exists "insert own inspection records" on public.inspection_recor
 create policy "insert own inspection records" on public.inspection_records
   for insert to authenticated with check ((select auth.uid()) = user_id);
 
--- UPDATE/DELETEや全利用者への公開ポリシーは作りません。
+-- 수정·삭제 권한과 모든 사용자에게 공개하는 접근 정책은 만들지 않습니다.

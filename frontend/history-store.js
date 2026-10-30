@@ -14,6 +14,7 @@ const inspectionHistory = (() => {
       PGRST205: "기록 테이블이 없습니다. Supabase SQL 설정을 먼저 실행하세요.",
       "42P01": "기록 테이블이 없습니다. Supabase SQL 설정을 먼저 실행하세요.",
       "42501": "기록 접근 권한이 없습니다. Supabase RLS 정책을 확인하세요.",
+      "23514": "저장 제약 조건을 확인하세요. HWPX·PDF 지원은 Supabase에서 supabase/add-hwpx-pdf.sql을 실행해야 합니다.",
       PGRST116: "기록이 없거나 이 브라우저에서 조회할 권한이 없습니다.",
       over_request_rate_limit: "요청이 많습니다. 잠시 뒤 다시 시도하세요."
     };

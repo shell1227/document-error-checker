@@ -3,7 +3,7 @@
 
 ## 현재 구현
 
-- 첫 화면에서 DOCX/PPTX, 문서 종류, 검사 항목 선택
+- 첫 화면에서 DOCX/PPTX/HWPX, 문서 종류, 검사 항목 선택
 - 세부 설정에서 검사 기준 검증 및 sessionStorage 저장
 - '검사 시작'을 누르면 문서 정보를 추출하여 같은 화면 아래에 표시
 - 추출 텍스트, 문단별 글꼴·크기·정렬·줄 간격 확인 및 전체 JSON 다운로드
@@ -31,6 +31,7 @@ Supabase는 `frontend/supabase-config.js`의 공개 설정 두 개로 연결합�
   같은 탭에서 새 파일을 선택하면 이전 파일을 교체합니다.
 - `document-reader.js`: 공통 ZIP/XML 읽기와 형식별 추출 함수 연결
 - `docx-reader.js`: DOCX 본문·표·텍스트 상자·머리글·바닥글의 문단과 텍스트
+- `hwpx-reader.js`: HWPX 구역 순서, 글자·문단 서식 ID, 언어별 글꼴 및 상대 크기
 - `pptx-reader.js`: 실제 슬라이드 순서에 따라 텍스트 상자·표의 문단과 텍스트
 - `pptx-styles.js`: PPTX 레이아웃·마스터·테마의 서식 상속 해석
 - `settings.js`: 기존 기준 저장 및 추출 결과 표시
@@ -39,8 +40,9 @@ Supabase는 `frontend/supabase-config.js`의 공개 설정 두 개로 연결합�
 - `history-store.js`: Supabase 익명 인증·자동 저장·기록 목록/상세 조회
 - `history-save.js`: 검사 결과와 독립적인 저장 상태 및 재시도
 - `history.html`, `history.js`: 이전 검사 기록 화면
-- `supabase-config.js`: 공개 Project URL / publishable key (현재 비어 있음)
+- `supabase-config.js`: 공개 Project URL / publishable key
 - `supabase/setup.sql`: 기록 테이블과 사용자별 SELECT/INSERT RLS 정책
+- `supabase/add-hwpx.sql`: 기존 DB에 HWPX 허용 형식 추가 (기록·RLS 유지)
 
 파일은 서버로 업로드하지 않습니다. IndexedDB는 탭을 닫아도 남을 수 있으며,
 브라우저 사이트 데이터 삭제로 지울 수 있습니다. 새 탭에서 시작할 때는
@@ -59,6 +61,13 @@ Supabase가 설정된 경우 파일명·검사 시각·기준·상세 결과는 
 - DOCX: 기본 서식, 문단/문자 스타일의 basedOn 상속, 직접 서식을 읽습니다.
   글자 크기는 pt로, 줄 간격은 배수이면 %, 고정/최소이면 pt와 규칙으로 표시합니다.
   문단 앞뒤 간격도 pt로 보관합니다. 페이지 수는 계산하지 않아 `null`입니다.
+- HWPX: content.hpf의 spine 순서로 구역을 읽고 header.xml의 서식 ID를 연결합니다.
+  본문과 중첩 표·글상자·머리글·바닥글에 저장된 문단을 읽습니다. 한글/영문/한자/가나별
+  `fontByScript`, `sizeByScript`를 저장하며 글자 크기는 height와 relSz로 계산합니다.
+  LEFT/RIGHT/CENTER/JUSTIFY 및 PERCENT 줄 간격을 비교합니다.
+  고정·최소·여백 줄 간격, 위·아래 첨자 크기, 기타 문자, 바탕쪽·수식·이미지·필드의
+  최종 표시 내용, 정확한 페이지 수는 검사 불가입니다. 새 라이브러리는 필요하지 않습니다.
+  기존 Supabase는 SQL Editor에서 `supabase/add-hwpx.sql` 실행 후 HWPX를 저장할 수 있습니다.
 - PPTX: `slides`에 슬라이드별 문단을 담고 `slideCount`를 제공합니다.
   관계 파일을 따라 해당 슬라이드의 레이아웃·마스터·테마를 읽습니다.
   슬라이드→레이아웃 자리 표시자는 idx, 레이아웃→마스터는 종류로 대응합니다.

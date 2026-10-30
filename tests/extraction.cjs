@@ -41,6 +41,7 @@ async function main() {
   try {
     browser = await chromium.launch({ headless: true, channel: "msedge" });
     const page = await browser.newPage();
+    await page.route("**/supabase-config.js", (route) => route.fulfill({ contentType: "text/javascript", body: "window.documentCheckerCloudConfig={url:'',publishableKey:''};" }));
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     const base = `http://127.0.0.1:${server.address().port}`;

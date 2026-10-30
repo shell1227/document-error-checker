@@ -1,6 +1,13 @@
 # Supabase 설정 순서
 
-현재는 설정값이 비어 있습니다. 이 상태에서도 DOCX/PPTX 검사와 JSON 다운로드는 동작합니다.
+## 기존 프로젝트에 HWPX 추가
+
+이미 테이블을 만든 프로젝트는 SQL Editor → New query에서 `add-hwpx.sql` 전체를
+붙여 넣고 Run을 누르세요. 기존 기록과 RLS 정책은 유지하고 파일 형식 제약만 확장합니다.
+초기 `setup.sql`을 다시 실행하는 것만으로는 기존 테이블의 제약 조건이 바뀌지 않습니다.
+완료 후 HWPX로 검사하여 저장 안내와 이전 기록의 상세 결과를 확인하세요.
+
+설정값이 비어 있거나 DB에 연결되지 않아도 DOCX/PPTX/HWPX 검사와 JSON 다운로드는 동작합니다.
 아래 설정이 끝나면 검사 완료 시 자동 저장하며, 첫 화면/설정 화면의 '이전 검사 기록 보기'로 조회합니다.
 
 ## 1. 프로젝트 생성
@@ -44,7 +51,7 @@ SQL은 자신의 기록만 추가·조회하도록 허용합니다. 모든 사�
 |---|---|
 | id | 검사별 UUID. 저장 재시도 때 같은 값을 사용 |
 | user_id | Supabase가 현재 인증 사용자 ID를 자동 입력 |
-| file_name / file_format | 파일명 / docx 또는 pptx |
+| file_name / file_format | 파일명 / docx, pptx 또는 hwpx |
 | inspected_at | 검사 완료 시각(브라우저 기준, UTC) |
 | created_at | DB에 저장된 시각(서버 기준) |
 | document_type / inspection_items | 문서 종류 / 선택 항목 |

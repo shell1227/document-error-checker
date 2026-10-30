@@ -30,8 +30,8 @@ form.addEventListener("submit", async (event) => {
 
   const extension = selectedFile.name.split(".").pop().toLowerCase();
 
-  if (extension !== "docx" && extension !== "pptx") {
-    message.textContent = "DOCX 또는 PPTX 파일만 선택할 수 있습니다.";
+  if (!["docx", "pptx", "hwpx", "pdf"].includes(extension)) {
+    message.textContent = "DOCX, PPTX, HWPX 또는 PDF 파일만 선택할 수 있습니다.";
     return;
   }
 

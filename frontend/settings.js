@@ -381,6 +381,7 @@ criteriaForm.addEventListener("submit", async (event) => {
     document.getElementById("extractedText").value = extractedDocument.text;
     document.getElementById("extractionSummary").textContent = extractedDocument.format === "pptx"
       ? `슬라이드 ${extractedDocument.slideCount}개 · 텍스트 ${extractedDocument.text.length}자`
+      : extractedDocument.format === "pdf" ? `페이지 ${extractedDocument.pageCount}개 · 텍스트 조각 ${extractedDocument.paragraphs.length}개 · 텍스트 ${extractedDocument.text.length}자`
       : `문단 ${extractedDocument.paragraphs.length}개 · 텍스트 ${extractedDocument.text.length}자`;
     const warnings = document.getElementById("extractionWarnings");
     warnings.replaceChildren();

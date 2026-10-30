@@ -37,6 +37,7 @@ async function mockApi(route) {
   let owner;
   try { owner = JSON.parse(Buffer.from(request.headers().authorization.split(".")[1], "base64url")).sub; } catch { return respond(401, {}); }
   if (mode === "missing-table") return respond(404, { code: "PGRST205" });
+  if (mode === "old-format-constraint") return respond(400, { code: "23514" });
   if (request.method() === "POST") {
     if (mode === "save-error") return respond(403, { code: "42501" });
     const row = request.postDataJSON();
@@ -66,6 +67,9 @@ async function main() {
   presentation.file("ppt/_rels/presentation.xml.rels", '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="s1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/></Relationships>');
   presentation.file("ppt/slides/slide1.xml", '<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>서론 결론</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>');
   const pptxFile = await presentation.generateAsync({ type: "nodebuffer" });
+  const hwpxZip = new JSZip();
+  for (const [name, value] of Object.entries(require("./hwpx-fixture.cjs")())) hwpxZip.file(name, value);
+  const hwpxFile = await hwpxZip.generateAsync({ type: "nodebuffer" });
   const server = http.createServer((req, res) => {
     const filename = path.resolve(root, "." + (req.url === "/" ? "/index.html" : req.url));
     if (!filename.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
@@ -87,7 +91,7 @@ async function main() {
     page.on("pageerror", (error) => errors.push(error.message));
     async function inspect(format = "docx", target = page) {
       await target.goto(base);
-      await target.locator("#documentFile").setInputFiles({ name: `sample.${format}`, mimeType: "application/octet-stream", buffer: format === "pptx" ? pptxFile : file });
+      await target.locator("#documentFile").setInputFiles({ name: `sample.${format}`, mimeType: "application/octet-stream", buffer: format === "pptx" ? pptxFile : format === "hwpx" ? hwpxFile : file });
       await target.locator('[value="report"]').check();
       await target.locator('[value="required-words"][name="inspectionItem"]').check();
       await target.getByRole("button", { name: "다음", exact: true }).click();
@@ -166,6 +170,20 @@ async function main() {
     await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("저장했습니다"));
     assert.equal(records.at(-1).file_format, "pptx");
     assert.equal(records.at(-1).result.format, "pptx");
+    await inspect("hwpx");
+    await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("저장했습니다"));
+    assert.equal(records.at(-1).file_format, "hwpx");
+    await page.goto(`${base}/history.html`);
+    await page.getByRole("button", { name: /sample.hwpx/ }).click();
+    await page.locator("#historyDetail").waitFor({ state: "visible" });
+    assert.ok((await page.locator("#inspectionResults").textContent()).includes("필수 단어: 기준 일치"));
+    mode = "old-format-constraint";
+    await inspect("hwpx");
+    await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("add-hwpx.sql"));
+    assert.equal(await page.locator("#inspectionSection").isVisible(), true);
+    mode = "ok";
+    await page.locator("#retrySaveHistory").click();
+    await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("저장했습니다"));
     // 저장 크기 제한은 검사 결과 다운로드를 막지 않습니다.
     const tooLarge = await page.evaluate(async (record) => {
       try { await inspectionHistory.save({ ...record, result: { scope: "x".repeat(3 * 1024 * 1024) } }); return ""; }
@@ -178,8 +196,10 @@ async function main() {
     mode = "ok";
     // 설정 없음 / SDK 파일 실패 / 공개되지 않아야 할 키도 기본 검사 보존
     await context.unroute("**/supabase-config.js");
+    await context.route("**/supabase-config.js", (route) => route.fulfill({ contentType: "text/javascript", body: "window.documentCheckerCloudConfig={url:'',publishableKey:''};" }));
     await inspect();
     assert.ok((await page.locator("#saveHistoryMessage").textContent()).includes("설정되지 않아"));
+    await context.unroute("**/supabase-config.js");
     await context.route("**/supabase-config.js", (route) => route.fulfill({ contentType: "text/javascript", body: `window.documentCheckerCloudConfig={url:"${api}",publishableKey:"sb_secret_do_not_use"};` }));
     await inspect();
     await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("공개 키만"));
@@ -201,7 +221,7 @@ async function main() {
     assert.ok(authMessage.includes("익명 로그인을 활성화"), authMessage);
     await authFailure.close();
     assert.deepEqual(errors, []);
-    console.log("PASS: mocked Supabase save/load, criteria/results, auth refresh, paging, identity boundary, retry/deduplication and disconnected inspection");
+    console.log("PASS: DOCX/PPTX/HWPX mocked Supabase save/load, criteria/results, migration failure recovery, auth refresh, paging, identity boundary, retry/deduplication and disconnected inspection");
   } finally { await browser.close(); await new Promise((resolve) => server.close(resolve)); }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

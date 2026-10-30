@@ -15,6 +15,11 @@ const documentInspector = (() => {
   const validNumber = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
   const unknown = (location, expected, reason, text = "") => ({ status: "unknown", location, expected, actual: "확인 불가", reason, text });
   const compare = (location, expected, actual, equal, text = "") => ({ status: equal ? "pass" : "fail", location, expected, actual, text });
+  function pdfFontName(name) {
+    const compact = fontName(name).replace(/[\s_-]/g, "");
+    const known = { arialmt: "arial", timesnewromanpsmt: "timesnewroman", "맑은고딕": "malgungothic" };
+    return known[compact] || compact;
+  }
 
   function paragraphs(document) {
     if (document.format === "pptx") {
@@ -65,6 +70,20 @@ const documentInspector = (() => {
           return;
         }
         const fonts = run.fontSettings || {};
+        if (document.format === "pdf") {
+          rows.push(run.fontNameKnown && expected ? compare(location, expected, run.fontFamily,
+            pdfFontName(expected) === pdfFontName(run.fontFamily), run.text)
+            : unknown(location, expected, "PDF에 지정된 글꼴 이름을 확정하지 못했습니다. 대체 글꼴 이름은 비교하지 않습니다.", run.text));
+          return;
+        }
+        if (document.format === "hwpx") {
+          for (const script of hwpxScripts(run.text)) {
+            const actual = run.fontByScript?.[script];
+            rows.push(actual ? compare(`${location} (${script})`, expected, actual, fontName(expected) === fontName(actual), run.text)
+              : unknown(location, expected, "문자 종류별 HWPX 글꼴 참조를 확인할 수 없습니다.", run.text));
+          }
+          return;
+        }
         if (document.format === "pptx" && run.resolvedFonts) {
           const scriptNames = { Hang: "한글", Jpan: "일본어", Hans: "중국어 간체", Hant: "중국어 번체", latin: "기본 영문·기호", Han: "언어 미확정 한자", other: "기타 문자" };
           for (const script of pptxScripts(run.text, fonts)) {
@@ -93,8 +112,18 @@ const documentInspector = (() => {
     return rows;
   }
 
+  function hwpxScripts(text) {
+    return [...new Set([...text].filter((c) => !/\s/u.test(c)).map((c) => /\p{Script=Hangul}/u.test(c) ? "hangul"
+      : /\p{Script=Han}/u.test(c) ? "hanja" : /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(c) ? "japanese"
+        : /^[\x21-\x7e]$/.test(c) ? "latin" : "unknown"))];
+  }
+
   function checkFormatting(id, document, list, criteria) {
     if (id === "font-family") return checkFonts(document, list, criteria);
+    if (document.format === "pdf" && ["alignment", "line-spacing"].includes(id)) {
+      return [unknown("PDF 전체", id === "alignment" ? alignmentNames[criteria.alignment] : `${criteria.lineSpacing}%`,
+        "PDF 좌표만으로 원본 문단의 정렬이나 % 줄 간격을 정확히 복원할 수 없습니다.")];
+    }
     const rows = [];
     for (const p of list) {
       if (!p.text.trim()) continue;
@@ -104,6 +133,15 @@ const documentInspector = (() => {
           if (!run.text.trim()) return;
           const location = `${p.location} · 글자 묶음 ${index + 1}`;
           const reasons = run.formatUncertainReasons || p.formatUncertainReasons || [];
+          if (document.format === "hwpx") {
+            for (const script of hwpxScripts(run.text)) {
+              const size = run.sizeByScript?.[script];
+              rows.push(!reasons.length && validNumber(size) && validNumber(criteria.fontSize)
+                ? compare(`${location} (${script})`, expected, `${size} pt`, equalNumber(size, criteria.fontSize), run.text)
+                : unknown(location, expected, reasons.join(" ") || "문자별 상대 크기 또는 위·아래 첨자 크기를 확정할 수 없습니다.", run.text));
+            }
+            return;
+          }
           if (reasons.length || (run.automaticFit && !run.fontSizeResolved) || !validNumber(run.fontSizePt) || !validNumber(criteria.fontSize) || (document.format === "docx" && fontGroups(run.text).includes("other"))) {
             rows.push(unknown(location, expected, reasons.join(" ") || "글자 크기 누락, 자동 맞춤 또는 지원하지 않는 문자 서식으로 크기를 확정할 수 없습니다.", run.text));
           } else rows.push({ ...compare(location, expected, `${run.fontSizePt} pt`, equalNumber(run.fontSizePt, criteria.fontSize), run.text),
@@ -116,7 +154,7 @@ const documentInspector = (() => {
         continue;
       }
       if (id === "alignment") {
-        const map = document.format === "docx"
+        const map = document.format !== "pptx"
           ? { left: "left", center: "center", right: "right", both: "justify" }
           : { l: "left", ctr: "center", r: "right", just: "justify" };
         const actual = map[p.alignment];
@@ -144,7 +182,17 @@ const documentInspector = (() => {
         }
       } else if (id === "page-count") {
         const expected = `${criteria.minLength ?? "제한 없음"} ~ ${criteria.maxLength ?? "제한 없음"} ${document.format === "pptx" ? "슬라이드" : "페이지"}`;
-        if (document.format !== "pptx") details.push(unknown("문서 전체", expected, "DOCX의 정확한 페이지 수는 실제 문서 배치가 필요합니다. 저장된 페이지 통계를 정답으로 사용하지 않습니다."));
+        if (document.format === "pdf") {
+          const count = document.pageCount;
+          const limitsValid = [criteria.minLength, criteria.maxLength].every((v) => v == null || (Number.isInteger(v) && v >= 1)) &&
+            (criteria.minLength != null || criteria.maxLength != null) &&
+            (criteria.minLength == null || criteria.maxLength == null || criteria.minLength <= criteria.maxLength);
+          details.push(Number.isInteger(count) && count > 0 && criteria.lengthUnit === "pages" && limitsValid
+            ? compare("PDF 전체 (빈 페이지 포함)", expected, `${count} 페이지`,
+              (criteria.minLength == null || count >= criteria.minLength) && (criteria.maxLength == null || count <= criteria.maxLength))
+            : unknown("PDF 전체", expected, "PDF 페이지 수 또는 분량 기준을 확인할 수 없습니다."));
+        }
+        else if (document.format !== "pptx") details.push(unknown("문서 전체", expected, `${document.format.toUpperCase()}의 정확한 페이지 수는 실제 문서 배치가 필요합니다. 저장된 통계·구역 수를 정답으로 사용하지 않습니다.`));
         else if (!Number.isInteger(document.slideCount) || document.slideCount < 0 || criteria.lengthUnit !== "slides" ||
           (criteria.minLength == null && criteria.maxLength == null)) details.push(unknown("문서 전체", expected, "슬라이드 수 또는 분량 기준을 확인할 수 없습니다."));
         else details.push(compare("문서 전체 (숨김 슬라이드 포함)", expected, `${document.slideCount} 슬라이드`,
@@ -153,7 +201,7 @@ const documentInspector = (() => {
         for (const word of criteria.requiredWords || []) {
           const found = document.text.normalize("NFC").includes(word.normalize("NFC"));
           if (document.textUncertain || (!found && document.textLimitations?.length)) {
-            details.push(unknown("문서 텍스트", word, document.textUncertain ? "변경 추적 때문에 최종 텍스트를 확정할 수 없습니다." : "추출되지 않은 내용이 있어 문서 전체에서 단어가 없다고 확정할 수 없습니다."));
+            details.push(unknown("문서 텍스트", word, document.textUncertain ? "변경 추적·자동 필드·숨긴 내용 또는 XML 분기로 최종 텍스트를 확정할 수 없습니다." : "추출되지 않은 내용이 있어 문서 전체에서 단어가 없다고 확정할 수 없습니다."));
           } else details.push(compare("추출한 문서 텍스트", word, found ? "포함" : "미포함", found));
         }
       } else details.push(unknown("문서 전체", "맞춤법·띄어쓰기", "맞춤법·띄어쓰기 검사기는 아직 구현하지 않았습니다."));
@@ -163,7 +211,8 @@ const documentInspector = (() => {
       return { id, label: labels[id] || id, status: counts.fail ? "fail" : counts.unknown ? "unknown" : "pass", counts, details };
     });
     return { fileName: document.fileName, format: document.format, criteria, items,
-      scope: "추출 가능한 본문·표·텍스트 상자·머리글·바닥글 또는 슬라이드의 저장 서식을 비교합니다. 제목·본문을 구분하지 않으며 빈 문단·공백만 있는 글자 묶음은 제외합니다. 글꼴은 설치 여부나 실제 렌더링 결과가 아닌 문서에 지정된 이름을 비교합니다." };
+      scope: document.format === "pdf" ? "PDF의 추출 가능한 텍스트 조각, 지정 글꼴 이름, 좌표 변환을 반영한 글자 크기(pt), 페이지 수를 비교합니다. 원본 문단 정렬과 % 줄 간격은 복원하지 않습니다. 읽기 순서와 OCR·그림·주석·필드에는 제한이 있으며 실제 화면 표시나 원본 편집 서식을 보장하지 않습니다."
+        : "추출 가능한 본문·표·텍스트 상자·머리글·바닥글 또는 슬라이드의 저장 서식을 비교합니다. 제목·본문을 구분하지 않으며 빈 문단·공백만 있는 글자 묶음은 제외합니다. 글꼴은 설치 여부나 실제 렌더링 결과가 아닌 문서에 지정된 이름을 비교합니다." };
   }
   return { inspect };
 })();

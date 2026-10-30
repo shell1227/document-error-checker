@@ -29,9 +29,10 @@ const documentReader = (() => {
   async function extract(file, extension) {
     if (!file) throw new Error("보관된 파일이 없습니다. 첫 화면에서 파일을 다시 선택하세요.");
     if (file.size > 20 * 1024 * 1024) throw new Error("현재는 20MB 이하 파일을 읽을 수 있습니다.");
+    if (extension === "pdf") return { fileName: file.name, format: "pdf", ...await readPdf(file) };
     let zip;
     try { zip = await JSZip.loadAsync(await file.arrayBuffer()); }
-    catch { throw new Error("문서를 열 수 없습니다. 암호화되지 않은 정상 DOCX·PPTX 파일인지 확인하세요."); }
+    catch { throw new Error("문서를 열 수 없습니다. 암호화되지 않은 정상 DOCX·PPTX·HWPX 파일인지 확인하세요. HWP 파일은 지원하지 않습니다."); }
     const cache = new Map();
     const read = (path, required = false) => {
       if (!cache.has(path)) cache.set(path, xml(zip, path));
@@ -40,7 +41,8 @@ const documentReader = (() => {
         return doc;
       });
     };
-    const result = extension === "docx" ? await readDocx(read) : extension === "pptx" ? await readPptx(read) : null;
+    const result = extension === "docx" ? await readDocx(read) : extension === "pptx" ? await readPptx(read)
+      : extension === "hwpx" ? await readHwpx(read) : null;
     if (!result) throw new Error("지원하지 않는 파일 형식입니다.");
     return { fileName: file.name, format: extension, ...result };
   }
