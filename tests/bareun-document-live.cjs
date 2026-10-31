@@ -17,7 +17,6 @@ async function main() {
     page.on("request", (r) => { if (r.url() === `${site}/api/proofread` && r.method() === "POST") requests.push(r.postDataJSON()); });
     await page.goto(`${site}/`);
     await page.locator("#documentFile").setInputFiles({ name: "__bareun_fulltext_test__.docx", mimeType: "application/octet-stream", buffer });
-    await page.locator('[name="documentType"][value="general"]').check();
     await page.locator('[name="inspectionItem"][value="spelling"]').check();
     await page.getByRole("button", { name: "다음", exact: true }).click();
     await page.waitForURL("**/settings.html");

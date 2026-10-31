@@ -16,9 +16,6 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const selectedFile = fileInput.files[0];
-  const selectedDocumentType = document.querySelector(
-    'input[name="documentType"]:checked'
-  );
   const selectedInspectionItems = [
     ...document.querySelectorAll('input[name="inspectionItem"]:checked')
   ];
@@ -35,11 +32,6 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (!selectedDocumentType) {
-    message.textContent = "문서 종류를 선택하세요.";
-    return;
-  }
-
   if (selectedInspectionItems.length === 0) {
     message.textContent = "검사 항목을 하나 이상 선택하세요.";
     return;
@@ -48,7 +40,6 @@ form.addEventListener("submit", async (event) => {
   const setupData = {
     fileName: selectedFile.name,
     extension,
-    documentType: selectedDocumentType.value,
     inspectionItems: selectedInspectionItems.map((item) => item.value)
   };
 

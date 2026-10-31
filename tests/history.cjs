@@ -97,7 +97,6 @@ async function main() {
     async function inspect(format = "docx", target = page, external = false) {
       await target.goto(base);
       await target.locator("#documentFile").setInputFiles({ name: `sample.${format}`, mimeType: "application/octet-stream", buffer: format === "pptx" ? pptxFile : format === "hwpx" ? hwpxFile : format === "pdf" ? pdfFile : file });
-      await target.locator('[value="report"]').check();
       await target.locator('[value="required-words"][name="inspectionItem"]').check();
       await target.locator('[value="spelling"][name="inspectionItem"]').check();
       await target.getByRole("button", { name: "다음", exact: true }).click();
@@ -117,6 +116,7 @@ async function main() {
     assert.equal(records.length, 1);
     assert.equal(records[0].file_name, "sample.docx");
     assert.equal(records[0].file_format, "docx");
+    assert.equal(records[0].document_type, "general", "문서 종류 선택 없이 DB 호환값을 저장해야 함");
     assert.deepEqual(records[0].criteria.requiredWords, ["서론"]);
     assert.ok(records[0].inspected_at);
     assert.ok(records[0].result.items.some((item) => item.id === "spelling" && item.counts.unknown > 0));
@@ -220,6 +220,9 @@ async function main() {
     await page.locator("#historyDetail").waitFor({ state: "visible" });
     assert.ok((await page.locator("#inspectionResults").textContent()).includes("수정 제안: 서문"));
     assert.ok((await page.locator("#inspectionResults").textContent()).includes("바른 검사 범위:"));
+    records[0].document_type = "assignment"; // 이전 버전에서 저장한 분류도 변경 없이 읽어야 합니다.
+    const oldRecord = await page.evaluate((id) => inspectionHistory.get(id), records[0].id);
+    assert.equal(oldRecord.document_type, "assignment");
     // 저장 크기 제한은 검사 결과 다운로드를 막지 않습니다.
     const tooLarge = await page.evaluate(async (record) => {
       try { await inspectionHistory.save({ ...record, result: { scope: "x".repeat(3 * 1024 * 1024) } }); return ""; }

@@ -28,7 +28,6 @@ async function main() {
     await page.route("**/supabase-config.js", (r) => r.fulfill({ contentType: "text/javascript", body: "window.documentCheckerCloudConfig={url:'',publishableKey:''};" }));
     await page.goto(`${base}/index.html`);
     await page.locator("#documentFile").setInputFiles(path.join(folder, "korean.pdf"));
-    await page.locator('[value="general"]').check();
     const ids = ["font-family", "font-size", "alignment", "line-spacing", "page-count", "required-words"];
     for (const id of ids) await page.locator(`[name="inspectionItem"][value="${id}"]`).check();
     await page.getByRole("button", { name: "다음", exact: true }).click();

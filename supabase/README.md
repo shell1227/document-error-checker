@@ -56,7 +56,7 @@ SQL은 자신의 기록만 추가·조회하도록 허용합니다. 모든 사�
 | file_name / file_format | 파일명 / docx, pptx, hwpx 또는 pdf |
 | inspected_at | 검사 완료 시각(브라우저 기준, UTC) |
 | created_at | DB에 저장된 시각(서버 기준) |
-| document_type / inspection_items | 문서 종류 / 선택 항목 |
+| document_type / inspection_items | DB 호환용 general 고정값 / 선택 항목 |
 | criteria / result / summary | 검사 기준 / 상세 결과 / 일치·불일치·검사 불가 건수 |
 | result_version | 현재 저장 형식 버전 1 |
 

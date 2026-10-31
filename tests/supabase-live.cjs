@@ -61,7 +61,7 @@ async function main() {
               lengthUnit: "pages", minLength: 1, maxLength: 2, requiredWords: ["서론"] });
           if (report.items.find((item) => item.id === "required-words").status !== "pass") throw new Error("테스트 문서 추출·단어 검사가 실패했습니다.");
         }
-        const record = inspectionHistory.createRecord(report, { documentType: "general", inspectionItems: report.items.map((item) => item.id) });
+        const record = inspectionHistory.createRecord(report, { inspectionItems: report.items.map((item) => item.id) });
         await inspectionHistory.save(record);
         await inspectionHistory.save(record); // 중복 재시도
         const loaded = await inspectionHistory.get(record.id);

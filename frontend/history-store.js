@@ -81,7 +81,8 @@ const inspectionHistory = (() => {
     return {
       id: crypto.randomUUID(), inspected_at: new Date().toISOString(),
       file_name: copy.fileName, file_format: copy.format,
-      document_type: setup.documentType, inspection_items: [...setup.inspectionItems],
+      // 기존 DB의 필수 컬럼과 호환하기 위한 값이며 검사 기준에는 사용하지 않습니다.
+      document_type: "general", inspection_items: [...setup.inspectionItems],
       criteria: copy.criteria, result: copy, summary, result_version: 1
     };
   }

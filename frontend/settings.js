@@ -6,7 +6,6 @@ try { setup = setupRaw ? JSON.parse(setupRaw) : null; }
 catch { sessionStorage.removeItem("documentCheckerSetup"); }
 
 const summaryFile = document.getElementById("summaryFile");
-const summaryType = document.getElementById("summaryType");
 const spellingSection = document.getElementById("spellingSection");
 const textFormatSection = document.getElementById("textFormatSection");
 const paragraphSection = document.getElementById("paragraphSection");
@@ -33,12 +32,6 @@ const lineSpacingInput = document.getElementById("lineSpacing");
 const minLengthInput = document.getElementById("minLength");
 const maxLengthInput = document.getElementById("maxLength");
 
-const typeNames = {
-  report: "보고서",
-  assignment: "수행평가",
-  general: "일반 문서"
-};
-
 const allItems = [
   "spelling",
   "font-family",
@@ -53,10 +46,8 @@ const selectedItems = setup?.inspectionItems ?? allItems;
 
 if (setup) {
   summaryFile.textContent = setup.fileName;
-  summaryType.textContent = typeNames[setup.documentType] ?? setup.documentType;
 } else {
   summaryFile.textContent = "직접 연 화면";
-  summaryType.textContent = "모든 설정 항목 표시";
 }
 
 const hasItem = (name) => selectedItems.includes(name);

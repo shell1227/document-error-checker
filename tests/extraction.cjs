@@ -46,12 +46,14 @@ async function main() {
     page.on("pageerror", (error) => errors.push(error.message));
     const base = `http://127.0.0.1:${server.address().port}`;
     await page.goto(base);
+    assert.equal(await page.locator('[name="documentType"]').count(), 0);
     await page.locator("#documentFile").setInputFiles({ name: "sample.docx", mimeType: "application/octet-stream", buffer: docx });
-    await page.locator('[value="report"]').check();
     await page.locator('[value="font-family"]').check();
     await page.locator('[value="required-words"]').check();
     await page.getByRole("button", { name: "다음", exact: true }).click();
     await page.waitForURL("**/settings.html");
+    assert.equal(await page.locator("#summaryType").count(), 0);
+    assert.equal(await page.evaluate(() => "documentType" in JSON.parse(sessionStorage.getItem("documentCheckerSetup"))), false);
     await page.reload(); // 파일이 페이지 이동과 새로고침을 지나도 보관되는지 확인
     await page.locator("#fontFamily").fill("맑은 고딕");
     await page.locator('[name="requiredWord"][value="서론"]').check();
@@ -87,7 +89,6 @@ async function main() {
     // PPTX도 실제 업로드 화면부터 전체 항목 검사까지 확인합니다.
     await page.goto(base);
     await page.locator("#documentFile").setInputFiles({ name: "sample.pptx", mimeType: "application/octet-stream", buffer: pptx });
-    await page.locator('[value="general"]').check();
     for (const id of ["font-family", "font-size", "alignment", "line-spacing", "page-count", "required-words", "spelling"]) {
       await page.locator(`[name="inspectionItem"][value="${id}"]`).check();
     }
@@ -117,7 +118,6 @@ async function main() {
     if (process.env.PPTX_SAMPLE) {
       await page.goto(base);
       await page.locator("#documentFile").setInputFiles(process.env.PPTX_SAMPLE);
-      await page.locator('[value="general"]').check();
       for (const id of ["font-family", "font-size", "alignment", "line-spacing"]) await page.locator(`[name="inspectionItem"][value="${id}"]`).check();
       await page.getByRole("button", { name: "다음", exact: true }).click();
       await page.waitForURL("**/settings.html");
@@ -140,7 +140,6 @@ async function main() {
     if (process.env.DOCX_SAMPLE) {
       await page.goto(base);
       await page.locator("#documentFile").setInputFiles(process.env.DOCX_SAMPLE);
-      await page.locator('[value="report"]').check();
       for (const id of ["font-family", "font-size", "alignment", "line-spacing", "page-count", "required-words"]) await page.locator(`[name="inspectionItem"][value="${id}"]`).check();
       await page.getByRole("button", { name: "다음", exact: true }).click();
       await page.waitForURL("**/settings.html");

@@ -34,7 +34,6 @@ async function main() {
     const buffer = await archive.generateAsync({ type: "nodebuffer" });
     await page.goto(`${base}/index.html`);
     await page.locator("#documentFile").setInputFiles({ name: "test.docx", mimeType: "application/octet-stream", buffer });
-    await page.locator('[name="documentType"][value="general"]').check();
     await page.locator('[name="inspectionItem"][value="spelling"]').check();
     await page.getByRole("button", { name: "다음", exact: true }).click();
     await page.waitForURL("**/settings.html");
