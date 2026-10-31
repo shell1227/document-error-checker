@@ -131,10 +131,14 @@ async function main() {
     assert.ok((await page.locator("#inspectionResults").textContent()).includes("수정 제안: 할 수 있어요"));
     assert.ok((await page.locator("#inspectionResults").textContent()).includes("수정 제안: 봬요"));
     assert.ok((await page.locator("#inspectionResults").textContent()).includes("필수 단어: 기준 일치"));
+    assert.ok(!(await page.locator("#inspectionResults .inspection-item").allTextContents()).some((text) => text.includes("[기준 일치]")), "기록 상세에도 정상 위치를 표시하지 않아야 함");
     if (process.env.HISTORY_SCREENSHOT) await page.screenshot({ path: process.env.HISTORY_SCREENSHOT, fullPage: true });
     const downloaded = page.waitForEvent("download");
     await page.locator("#downloadHistory").click();
-    assert.equal((await downloaded).suggestedFilename(), "sample.docx.history.json");
+    const historyDownload = await downloaded;
+    assert.equal(historyDownload.suggestedFilename(), "sample.docx.history.json");
+    const exportedHistory = JSON.parse(fs.readFileSync(await historyDownload.path(), "utf8"));
+    assert.ok(exportedHistory.result.items.some((item) => item.details.some((row) => row.status === "pass")), "기록 JSON에도 정상 상세를 보존해야 함");
     // 같은 기록의 재시도는 1건을 유지
     await page.evaluate((record) => { const { user_id, created_at, ...payload } = record; return inspectionHistory.save(payload); }, records[0]);
     assert.equal(records.length, 1);

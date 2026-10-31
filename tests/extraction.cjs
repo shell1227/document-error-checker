@@ -111,6 +111,9 @@ async function main() {
     await page.locator("#downloadInspection").click();
     const download = await downloadEvent;
     assert.equal(download.suggestedFilename(), "sample.pptx.inspection.json");
+    const savedReport = JSON.parse(fs.readFileSync(await download.path(), "utf8"));
+    assert.ok(savedReport.items.some((item) => item.details.some((row) => row.status === "pass")), "JSON 다운로드는 정상 상세를 보존해야 함");
+    assert.equal(await page.locator('.inspection-item li').getByText(/\[기준 일치\]/).count(), 0);
     if (process.env.INSPECTION_SCREENSHOT) {
       await page.locator("#inspectionSection").scrollIntoViewIfNeeded();
       await page.screenshot({ path: process.env.INSPECTION_SCREENSHOT });

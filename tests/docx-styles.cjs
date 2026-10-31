@@ -58,7 +58,7 @@ async function main() {
     await page.setContent('<section id="inspectionSection"><div id="inspectionResults"></div></section>');
     await page.evaluate((report) => renderInspection(JSON.parse(JSON.stringify(report))), spelling.report);
     assert.ok((await page.locator('#inspectionResults').textContent()).includes("기능 한계 안내"));
-    assert.ok((await page.locator('h3').textContent()).includes("전체 정상 판정 아님"));
+    assert.ok((await page.locator('.inspection-overview').textContent()).includes("전체 정상 판정 아님"));
     const unknown = await inspect(noAlign);
     await page.evaluate((report) => renderInspection(report), unknown.report);
     assert.ok((await page.locator('#inspectionResults').textContent()).includes("검사 불가·판단 보류 사유"));

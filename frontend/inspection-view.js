@@ -17,6 +17,15 @@ function renderInspection(report) {
   scope.className = "help-text";
   scope.textContent = report.scope + " 항목 안에 검사 불가가 하나라도 있으면 전체 정상으로 표시하지 않습니다. 불일치와 검사 불가가 함께 있을 수도 있습니다.";
   container.appendChild(scope);
+  const overview = document.createElement("div");
+  overview.className = "inspection-overview";
+  container.appendChild(overview);
+  if (report.items.length && report.items.every((item) => item.status === "pass")) {
+    const message = document.createElement("p");
+    message.className = "inspection-pass";
+    message.textContent = "선택한 검사 항목에서 오류가 발견되지 않았습니다.";
+    overview.appendChild(message);
+  }
   for (const item of report.items) {
     // 이전 저장 기록도 안내 문구와 실제 미검사 위치를 구분해 표시합니다.
     const isNotice = (row) => row.kind === "notice" || item.id === "spelling" && !row.suggestion && ["검사 범위", "규칙 적용 범위", "PDF 추출 범위", "외부 검사 범위", "검사 제한"].includes(row.location);
@@ -26,20 +35,27 @@ function renderInspection(report) {
     findings.forEach((row) => counts[row.status]++);
     const section = document.createElement("section");
     section.className = "inspection-item";
-    const heading = document.createElement("h3");
+    const heading = document.createElement("p");
     heading.className = `inspection-${item.status}`;
     const statusLabel = item.status === "unknown" && counts.pass > 0 ? "일부 검사 불가" : names[item.status];
     heading.textContent = `${item.label}: ${item.id === "spelling" ? counts.fail ? "수정 후보 발견" : counts.unknown ? "미검사·확인 필요 구간 있음" : "검사 범위 내 수정 후보 없음 (전체 정상 판정 아님)" : statusLabel}`;
     const summary = document.createElement("p");
     summary.textContent = item.id === "spelling" ? `수정 후보 ${counts.fail}건 · 미검사・판단 보류 ${counts.unknown}건 (기능 안내는 건수에서 제외)`
       : `기준 일치 ${counts.pass}건 · 불일치 ${counts.fail}건 · 검사 불가 ${counts.unknown}건`;
+    const overviewItem = document.createElement("div");
+    overviewItem.append(heading, summary);
+    overview.appendChild(overviewItem);
+    const problems = findings.filter((row) => row.status === "fail" || row.status === "unknown");
+    if (!problems.length && !notices.length && !item.coverage) continue;
+    const detailHeading = document.createElement("h3");
+    detailHeading.textContent = `${item.label}${problems.length ? " 상세" : " 검사 범위 안내"}`;
     const disclosure = document.createElement("details");
     disclosure.open = item.status !== "pass";
     const title = document.createElement("summary");
     title.textContent = item.id === "spelling" ? "오류 후보·수정 제안·위치 확인" : "위치·기준값·추출값 확인";
     disclosure.appendChild(title);
     // 먼저 불일치와 검사 불가를 보여주고, 큰 문서는 다운로드로 확인합니다.
-    const sorted = [...findings].sort((a, b) => ({ fail: 0, unknown: 1, pass: 2 }[a.status] - { fail: 0, unknown: 1, pass: 2 }[b.status]));
+    const sorted = [...problems].sort((a, b) => ({ fail: 0, unknown: 1 }[a.status] - { fail: 0, unknown: 1 }[b.status]));
     const list = document.createElement("ul");
     for (const row of sorted.slice(0, 200)) {
       const li = document.createElement("li");
@@ -55,7 +71,8 @@ function renderInspection(report) {
       note.textContent = "화면에는 항목당 200건까지 표시합니다. 전체 내역은 검사 결과 다운로드로 확인하세요.";
       disclosure.appendChild(note);
     }
-    section.append(heading, summary, disclosure);
+    section.append(detailHeading, disclosure);
+    disclosure.hidden = !problems.length;
     const reasons = new Map();
     for (const row of findings.filter((r) => r.status === "unknown")) reasons.set(row.reason || "사유 정보 없음", (reasons.get(row.reason || "사유 정보 없음") || 0) + 1);
     if (reasons.size) {
