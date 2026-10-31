@@ -3,7 +3,7 @@ const { createHandler } = require("../frontend/api/proofread.js");
 const env = { BAREUN_API_KEY: "secret-test-key", SUPABASE_URL: "https://demo.supabase.co", SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test", BAREUN_ALLOWED_ORIGIN: "https://checker.test" };
 const body = () => ({ consent: true, requestId: crypto.randomUUID(), chunks: ["할수있다."] });
 async function main() {
-  let calls = [], quota = true, fail = false, schema = false, wrongOffset = false, clean = false;
+  let calls = [], quota = true, fail = false, schema = false, wrongOffset = false, clean = false, camel = false;
   const fetcher = async (url, options) => {
     calls.push({ url, options });
     if (url.endsWith("/user")) return { ok: true, json: async () => ({ id: "user" }) };
@@ -11,6 +11,7 @@ async function main() {
     if (fail) throw new Error("secret-test-key should never leak");
     const text = JSON.parse(options.body).document.content;
     if (clean) return { ok: true, json: async () => ({ origin: text, revised: text }) };
+    if (camel) return { ok: true, json: async () => ({ origin: text, revised: "할 수 있다.", revisedBlocks: [{ origin: { content: "할수있다", beginOffset: "0" }, revised: "할 수 있다", revisions: [{ category: "SPACING", helpId: "spacing" }] }], helps: { spacing: { comment: "띄어 씁니다." } } }) };
     return { ok: true, json: async () => schema ? {} : ({ origin: text, revised: "할 수 있다.", revised_blocks: [{ origin: { content: "할수있다", begin_offset: wrongOffset ? 90 : 0, length: 0 }, revised: "할 수 있다", revisions: [{ category: "SPACING", help_id: "spacing" }] }], helps: { spacing: { comment: "띄어 씁니다." } } }) };
   };
   async function invoke(overrides = {}, settings = env) {
@@ -48,6 +49,12 @@ async function main() {
   const mismatch = (await invoke()).data.results[0];
   assert.equal(mismatch.findings.length, 0);
   assert.equal(mismatch.incomplete, true);
+  assert.equal(mismatch.wholeRevision, "할 수 있다.");
+  camel = true;
+  const camelResult = (await invoke()).data.results[0];
+  assert.equal(camelResult.findings.length, 1);
+  assert.equal(camelResult.findings[0].reason, "띄어 씁니다.");
+  assert.equal(camelResult.incomplete, false);
   clean = true;
   const noErrors = (await invoke()).data.results[0];
   assert.equal(noErrors.ok, true);

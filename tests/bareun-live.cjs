@@ -3,7 +3,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const { createClient } = require("../frontend/vendor/supabase.min.js");
+// 로컬 SDK는 CommonJS 모듈이 아니라 브라우저 전역 번들입니다.
+const { createClient } = vm.runInThisContext(fs.readFileSync(path.join(__dirname, "../frontend/vendor/supabase.min.js"), "utf8") + "\nsupabase;");
 async function main() {
   if (!process.env.BAREUN_TEST_SITE) { console.log("SKIP: BAREUN_TEST_SITE를 배포된 사이트 주소로 설정한 뒤 실행하세요. 실제 API 테스트는 수행하지 않았습니다."); return; }
   const site = new URL(process.env.BAREUN_TEST_SITE);
@@ -23,6 +24,7 @@ async function main() {
   assert.ok(result.results.every((r) => r.ok === true), "바른 호출 또는 응답 해석에 실패했습니다.");
   console.log("PASS: 배포된 서버 함수 → Supabase 인증/사용량 예약 → 실제 바른 CorrectError API 연결");
   console.log(JSON.stringify(result.results.map((r, i) => ({ sentence: i + 1, candidates: r.findings.length, incomplete: r.incomplete }))));
+  assert.ok(result.results[1].findings.length > 0, "연결은 성공했지만 오류 문장의 부분 수정 후보를 해석하지 못했습니다. 최종 검증 미완료입니다.");
   console.log("교정 품질은 후보 내용을 별도로 검토해야 합니다. 테스트 호출 2회가 사용량에 포함됩니다.");
 }
 main().catch((e) => { console.error(e.message); process.exitCode = 1; });

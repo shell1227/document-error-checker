@@ -38,26 +38,29 @@ function createHandler(env = process.env, fetcher = fetch) {
           body: JSON.stringify({ document: { content: text, language: "ko-KR" }, encoding_type: "UTF16" }) });
         if (data.origin !== text || typeof data.revised !== "string") throw new Error("schema");
         // 오류가 없는 응답은 protobuf JSON에서 빈 배열 필드가 생략될 수 있습니다.
-        const blocks = data.revised_blocks === undefined ? [] : data.revised_blocks;
+        const blocks = data.revised_blocks ?? data.revisedBlocks ?? [];
         if (!Array.isArray(blocks)) throw new Error("schema");
         const findings = [];
         let incomplete = false;
         for (const block of blocks.slice(0, 200)) {
           const original = block.origin?.content;
           const suggestion = block.revised;
-          let offset = block.origin?.begin_offset;
+          let offset = block.origin?.begin_offset ?? block.origin?.beginOffset;
+          if (typeof offset === "string" && /^\d+$/.test(offset)) offset = Number(offset);
           if (typeof original !== "string" || typeof suggestion !== "string" || suggestion.length > 3000 || original.length > 1000) { incomplete = true; continue; }
           if (!Number.isInteger(offset) && original && text.indexOf(original) === text.lastIndexOf(original)) offset = text.indexOf(original);
           if (!Number.isInteger(offset) || offset < 0 || offset > text.length || text.slice(offset, offset + original.length) !== original) { incomplete = true; continue; }
           if (original === suggestion) continue;
           const revision = block.revisions?.[0];
-          const help = data.helps?.[revision?.help_id];
+          const help = data.helps?.[revision?.help_id ?? revision?.helpId];
           findings.push({ original, suggestion, offset, length: original.length,
             category: typeof revision?.category === "string" ? revision.category.slice(0, 60) : "UNKNOWN",
             reason: typeof help?.comment === "string" ? help.comment.slice(0, 1000) : "바른 API가 제안한 수정 후보입니다. 원문의 의미를 확인하세요." });
         }
-        if (blocks.length > 200 || data.whitespace_cleanup_ranges?.length || (data.revised !== text && !findings.length)) incomplete = true;
-        results.push({ ok: true, findings, incomplete });
+        if (blocks.length > 200 || (data.whitespace_cleanup_ranges ?? data.whitespaceCleanupRanges)?.length || (data.revised !== text && !findings.length)) incomplete = true;
+        // 부분 위치를 복원하지 못해도 전체 교정문을 '확인 필요' 제안으로 보존합니다.
+        const wholeRevision = incomplete && data.revised !== text && data.revised.length <= 3000 ? data.revised : null;
+        results.push({ ok: true, findings, incomplete, wholeRevision });
       } catch {
         // 한 번 실패하면 나머지 호출도 멈춥니다. 응답 본문에는 키나 원본 서버 오류를 넣지 않습니다.
         results.push({ ok: false, message: "바른 API 호출 또는 결과 해석에 실패했습니다. 키·한도·서비스 상태를 확인하세요." });

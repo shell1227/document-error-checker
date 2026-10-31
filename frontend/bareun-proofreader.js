@@ -56,6 +56,11 @@ const bareunProofreader = (() => {
             text: segment.text.slice(Math.max(0, offset - 45), Math.min(segment.text.length, offset + original.length + 45)) });
         }
         if (result.incomplete) rows.push(unknown("응답의 일부 수정 위치·공백 처리를 해석하지 못했습니다. 원문을 자동 수정하지 않습니다."));
+        if (typeof result.wholeRevision === "string" && result.wholeRevision !== segment.text && result.wholeRevision.length <= 3000) {
+          rows.push({ status: "unknown", location: segment.location, actual: segment.text, expected: result.wholeRevision,
+            suggestion: result.wholeRevision, provider: "bareun", category: "CONFIRM",
+            reason: "바른의 전체 교정문입니다. 부분 수정 위치를 확정하지 못했으므로 원문과 직접 비교해야 합니다.", text: segment.text });
+        }
         if (!valid) rows.push(unknown(`${segment.location}: API가 수정 후보를 반환하지 않았습니다. 문장 전체가 정확하다는 뜻은 아닙니다.`));
       });
     } catch (error) {
