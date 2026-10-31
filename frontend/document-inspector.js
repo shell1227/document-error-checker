@@ -70,7 +70,7 @@ const documentInspector = (() => {
       p.runs.forEach((run, index) => {
         if (!run.text.trim()) return;
         const location = `${p.location} · 글자 묶음 ${index + 1}`;
-        const reasons = run.formatUncertainReasons || p.formatUncertainReasons || [];
+        const reasons = run.formatReasons?.["font-family"] || run.formatUncertainReasons || p.formatUncertainReasons || [];
         if (reasons.length || !expected) {
           rows.push(unknown(location, expected, reasons.join(" ") || "글꼴 기준이 없습니다.", run.text));
           return;
@@ -97,7 +97,7 @@ const documentInspector = (() => {
             const scope = `${location} (${scriptNames[script]})`;
             rows.push(resolved?.name
               ? { ...compare(scope, expected, resolved.name, fontName(expected) === fontName(resolved.name), run.text), source: resolved.source }
-              : unknown(scope, expected, "문자별 테마 글꼴·언어 또는 상속 연결을 확정할 수 없습니다.", run.text));
+              : unknown(scope, expected, `문자별 테마 글꼴(${script})·언어 또는 상속 연결을 확정할 수 없습니다. 근거: ${run.formatSources?.[script === "latin" ? "latin" : "eastAsia"] || "글꼴 지정 없음"}`, run.text));
           }
           return;
         }
@@ -106,9 +106,12 @@ const documentInspector = (() => {
           const theme = document.format === "docx" ? fonts[`${key}Theme`] : null;
           const actual = fonts[key];
           const scope = `${location} (${group === "eastAsia" ? "한글·한자·가나" : group === "latin" ? "기본 영문·기호" : "기타 문자"})`;
-          if (group === "other" || fonts.complexScript || theme || !actual || actual.startsWith("+") ||
+          const resolved = document.format === "docx" ? run.resolvedFonts?.[key] : null;
+          if (resolved && group !== "other" && !fonts.complexScript) {
+            rows.push({ ...compare(scope, expected, resolved.name, fontName(expected) === fontName(resolved.name), run.text), source: resolved.source });
+          } else if (group === "other" || fonts.complexScript || theme || !actual || actual.startsWith("+") ||
             (document.format === "docx" && key === "eastAsia" && actual.toLowerCase() === "times new roman")) {
-            rows.push(unknown(scope, expected, "문자별 글꼴이 없거나 테마·복합 문자 선택 규칙을 확정할 수 없습니다.", run.text));
+            rows.push(unknown(scope, expected, theme ? `테마 참조 ${theme}: 연결된 테마의 글꼴 이름이나 언어 매핑을 확인하지 못했습니다.` : `문자별 글꼴(${key})이 없거나 복합 문자 선택 규칙을 확정할 수 없습니다.`, run.text));
           } else {
             rows.push(compare(scope, expected, actual, fontName(expected) === fontName(actual), run.text));
           }
@@ -138,7 +141,7 @@ const documentInspector = (() => {
         p.runs.forEach((run, index) => {
           if (!run.text.trim()) return;
           const location = `${p.location} · 글자 묶음 ${index + 1}`;
-          const reasons = run.formatUncertainReasons || p.formatUncertainReasons || [];
+          const reasons = run.formatReasons?.[id] || run.formatUncertainReasons || p.formatUncertainReasons || [];
           if (document.format === "hwpx") {
             for (const script of hwpxScripts(run.text)) {
               const size = run.sizeByScript?.[script];
@@ -148,25 +151,27 @@ const documentInspector = (() => {
             }
             return;
           }
-          if (reasons.length || (run.automaticFit && !run.fontSizeResolved) || !validNumber(run.fontSizePt) || !validNumber(criteria.fontSize) || (document.format === "docx" && fontGroups(run.text).includes("other"))) {
-            rows.push(unknown(location, expected, reasons.join(" ") || "글자 크기 누락, 자동 맞춤 또는 지원하지 않는 문자 서식으로 크기를 확정할 수 없습니다.", run.text));
+          if (reasons.length || (run.automaticFit && !run.fontSizeResolved) || !validNumber(run.fontSizePt) || !validNumber(criteria.fontSize) || (document.format === "docx" && /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Thaana}]/u.test(run.text))) {
+            rows.push(unknown(location, expected, reasons.join(" ") || run.fontSizeUnknownReason || (run.automaticFit && !run.fontSizeResolved ? `자동 맞춤 축소율을 확인하지 못했습니다. ${run.formatSources?.fit || "연결된 텍스트 상자의 자동 맞춤 정보가 없습니다."}` : "글자 크기가 없거나 지원하지 않는 문자 서식으로 크기를 확정할 수 없습니다."), run.text));
           } else rows.push({ ...compare(location, expected, `${run.fontSizePt} pt`, equalNumber(run.fontSizePt, criteria.fontSize), run.text),
             source: run.formatSources?.fontSizePt ? `${run.formatSources.fontSizePt}${run.automaticFit ? ` · 파일 기준 축소율 ${run.fontScale * 100}% · ${run.formatSources.fit}` : ""}` : undefined });
         });
         continue;
       }
-      if (p.formatUncertainReasons?.length) {
-        rows.push(unknown(p.location, expected, p.formatUncertainReasons.join(" "), p.text));
+      const reasons = p.formatReasons?.[id] || p.formatUncertainReasons || [];
+      if (reasons.length) {
+        rows.push(unknown(p.location, expected, reasons.join(" "), p.text));
         continue;
       }
       if (id === "alignment") {
         const map = document.format !== "pptx"
           ? { left: "left", center: "center", right: "right", both: "justify" }
           : { l: "left", ctr: "center", r: "right", just: "justify" };
-        const actual = map[p.alignment];
+        const actual = map[p.alignment] || (document.format === "docx" && typeof p.bidirectional === "boolean"
+          ? p.alignment === "start" ? p.bidirectional ? "right" : "left" : p.alignment === "end" ? p.bidirectional ? "left" : "right" : null : null);
         rows.push({ ...(actual && expected
           ? compare(p.location, expected, alignmentNames[actual], actual === criteria.alignment, p.text)
-          : unknown(p.location, expected, "정렬 값이 없거나 방향 의존·배분 정렬 등 현재 비교하지 않는 값입니다.", p.text)), source: p.formatSources?.alignment });
+          : unknown(p.location, expected, p.alignment == null ? "직접 서식·기본/상속 스타일에서 정렬 값이 확인되지 않았습니다. 왼쪽 정렬로 추정하지 않습니다." : `저장된 정렬 값 '${p.alignment}'은 방향 의존·배분 정렬 등으로 정확히 비교할 수 없습니다.`, p.text)), source: p.formatSources?.alignment });
       } else {
         const spacing = p.lineSpacing;
         rows.push({ ...(spacing?.unit === "percent" && validNumber(spacing.value) && validNumber(criteria.lineSpacing)
@@ -220,8 +225,8 @@ const documentInspector = (() => {
       } else details.push(unknown("문서 전체", id, "지원하지 않는 검사 항목입니다."));
       if (!details.length) details.push(unknown("문서 전체", labels[id], "비교할 텍스트·서식 또는 검사 기준이 없습니다."));
       const counts = { pass: 0, fail: 0, unknown: 0 };
-      details.forEach((row) => counts[row.status]++);
-      return { id, label: labels[id] || id, status: counts.fail ? "fail" : counts.unknown ? "unknown" : "pass", counts, details };
+      details.filter((row) => row.kind !== "notice").forEach((row) => counts[row.status]++);
+      return { id, label: labels[id] || id, status: counts.fail ? "fail" : counts.unknown || id === "spelling" ? "unknown" : "pass", counts, details };
     });
     return { fileName: document.fileName, format: document.format, criteria, items,
       scope: document.format === "pdf" ? "PDF의 추출 가능한 텍스트 조각, 지정 글꼴 이름, 좌표 변환을 반영한 글자 크기(pt), 페이지 수를 비교합니다. 원본 문단 정렬과 % 줄 간격은 복원하지 않습니다. 읽기 순서와 OCR·그림·주석·필드에는 제한이 있으며 실제 화면 표시나 원본 편집 서식을 보장하지 않습니다."

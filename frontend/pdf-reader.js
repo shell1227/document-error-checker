@@ -72,6 +72,10 @@ async function readPdf(file) {
           previous = item;
           if (!item.str.trim()) continue;
           const run = { text: item.str, fontFamily, rawFontName: rawName,
+            fontSizeUnknownReason: !font ? "PDF 글꼴 리소스를 읽지 못했습니다." : style?.vertical ? "세로쓰기 PDF의 글자 크기는 확정하지 않습니다."
+              : font.isType3Font || font.isInvalidPDFjsFont ? "Type3 또는 유효하지 않은 PDF 글꼴의 크기는 확정하지 않습니다."
+                : !orthogonal ? "PDF 텍스트에 기울임·전단 변환이 적용되어 크기를 확정하지 못합니다."
+                  : Math.abs(widthScale - heightScale) >= 0.001 ? "PDF 텍스트에 가로·세로 비균등 확대가 적용되어 원래 글자 크기를 확정하지 못합니다." : null,
             fontNameKnown: Boolean(fontFamily && !fontFamily.includes("\ufffd") && !/^(g_d\d|sans-serif$|serif$|monospace$)/i.test(fontFamily) && !font?.isType3Font && !font?.isInvalidPDFjsFont),
             fontSizePt, transform: [...t], x: t[4], y: t[5], width: item.width, height: item.height };
           paragraphs.push({ source: `페이지 ${pageNumber} · 텍스트 조각`, index: ++index,

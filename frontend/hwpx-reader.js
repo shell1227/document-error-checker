@@ -103,10 +103,13 @@ async function readHwpx(read) {
               : is(e, "paragraph", "fwSpace") ? "\u3000" : "").join("");
         }).join("");
         return { text, fontByScript, sizeByScript, fontSizePt: n(a(cp, "height"), 100),
+          formatSources: { fontSizePt: `HWPX 글자 서식 ${a(cp, "id") ?? "누락"}${a(r, "charPrIDRef") === null ? " · 문단 스타일 상속" : " · 직접 참조"}` },
           charPrId: a(cp, "id"), formatUncertainReasons: cp ? [] : ["글자 서식 ID를 찾을 수 없습니다."] };
       });
       paragraphs.push({ source: `구역 ${sectionCount} (${filename})`, index: index + 1,
         text: runs.map((r) => r.text).join(""), runs,
+        formatSources: { alignment: `HWPX 문단 서식 ${a(pp, "id") ?? "누락"}${a(p, "paraPrIDRef") === null ? " · 스타일 상속" : " · 직접 참조"}`,
+          lineSpacing: `HWPX 문단 서식 ${a(pp, "id") ?? "누락"} · 줄 간격 ${spacingType ?? "누락"}` },
         alignment: ({ LEFT: "left", RIGHT: "right", CENTER: "center", JUSTIFY: "both" })[align] || null,
         lineSpacing: spacingType === "PERCENT" ? { unit: "percent", value: n(a(spacing, "value")) }
           : spacing ? { unit: "hwpunit", value: n(a(spacing, "value")), rule: spacingType } : null,

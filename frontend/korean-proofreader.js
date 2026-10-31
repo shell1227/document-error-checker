@@ -47,15 +47,15 @@ const koreanProofreader = (() => {
       }
     }
     rows.sort((a, b) => a.location.localeCompare(b.location, "ko") || a.offset - b.offset);
-    rows.push({ status: "unknown", location: "검사 범위", expected: "한국어 맞춤법·띄어쓰기 전체 검사", actual: "제한된 규칙만 검사",
+    rows.push({ status: "unknown", kind: "notice", location: "검사 범위", expected: "한국어 맞춤법·띄어쓰기 전체 검사", actual: "제한된 규칙만 검사",
       reason: "되요·뵈요·아니예요·일부 됬- 활용과 '할 수 있다' 형태의 일부 띄어쓰기만 확인합니다. 오류 후보가 없어도 정상 판정하지 않습니다. 문맥·고유명사·형태소·새 어휘·그 밖의 띄어쓰기는 검사 불가입니다.",
       text: "" });
     for (const reason of document.textLimitations || []) rows.push({ status: "unknown", location: "추출 범위 밖", expected: "문서 전체 텍스트", actual: "일부 내용 확인 불가", reason });
-    if (document.format === "pdf") rows.push({ status: "unknown", location: "PDF 추출 범위", expected: "원본 문장", actual: "배치된 텍스트 조각",
+    if (document.format === "pdf") rows.push({ status: "unknown", kind: "notice", location: "PDF 추출 범위", expected: "원본 문장", actual: "배치된 텍스트 조각",
       reason: "PDF의 읽기 순서·줄바꿈·스캔/OCR·Unicode 매핑에 따라 일부 오류를 찾지 못하거나 수정 후보가 달라질 수 있습니다." });
-    rows.push({ status: "unknown", location: "규칙 적용 범위", expected: "추출 텍스트 전체", actual: `${processed}자에 규칙 적용`,
+    rows.push({ status: "unknown", kind: "notice", location: "규칙 적용 범위", expected: "추출 텍스트 전체", actual: `${processed}자에 규칙 적용`,
       reason: `등록된 규칙을 전체 추출 구간에 적용했습니다. 수정 후보 ${detected}개를 찾았습니다. 원문에서 추출하지 못한 내용과 규칙 밖의 오류는 판단하지 못합니다.` });
-    if (detected > 500) rows.push({ status: "unknown", location: "검사 제한", expected: "전체 후보 상세", actual: "상세 500개 보관",
+    if (detected > 500) rows.push({ status: "unknown", kind: "notice", location: "검사 제한", expected: "전체 후보 상세", actual: "상세 500개 보관",
       reason: `전체 텍스트를 검사했지만 추가 후보 ${detected - 500}개의 상세는 결과 크기를 제한하기 위해 보관하지 않았습니다.` });
     return rows;
   }

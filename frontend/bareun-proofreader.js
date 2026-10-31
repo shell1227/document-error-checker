@@ -130,7 +130,7 @@ const bareunProofreader = (() => {
       completedCharacters: applicable.reduce((n, s) => n + s.completed.reduce((a, r) => a + r.end - r.start, 0), 0),
       excludedCharacters: coverage.filter((s) => !s.applicable).reduce((n, s) => n + s.length, 0), segments: coverage,
       plannedBatches: batches.length, completedBatches: results.filter((r) => r?.ok === true).length, requestedCalls };
-    rows.push(unknown("외부 검사 범위", "오류 후보가 없어도 전체 정상이라고 판정하지 않습니다. API 응답 수신 범위와 수정 해석의 불확실성은 별개입니다."));
+    rows.push({ ...unknown("외부 검사 범위", "오류 후보가 없어도 전체 정상이라고 판정하지 않습니다. API 응답 수신 범위와 수정 해석의 불확실성은 별개입니다."), kind: "notice" });
     return rows;
   }
   // 같은 위치의 겹친 원문이 같은 교정 결과를 만들 때만 한 후보로 합칩니다.
@@ -159,7 +159,7 @@ const bareunProofreader = (() => {
       item.details.push(row);
     }
     item.counts = { pass: 0, fail: 0, unknown: 0 };
-    item.details.forEach((r) => item.counts[r.status]++);
+    item.details.filter((r) => r.kind !== "notice").forEach((r) => item.counts[r.status]++);
     item.status = item.counts.fail ? "fail" : "unknown";
     item.providers = ["local-rules", "bareun"];
     item.coverage = rows.coverage;

@@ -104,7 +104,7 @@ async function main() {
     await page.getByRole("button", { name: "검사 시작", exact: true }).click();
     await page.locator("#inspectionSection").waitFor({ state: "visible" });
     const inspectionText = await page.locator("#inspectionResults").textContent();
-    for (const expected of ["글자 크기: 불일치", "문단 정렬: 일부 검사 불가", "줄 간격: 일부 검사 불가", "문서 분량: 기준 일치", "필수 단어: 불일치", "맞춤법·띄어쓰기: 검사 불가", "슬라이드 1 · 문단 1"]) {
+    for (const expected of ["글자 크기: 불일치", "문단 정렬: 일부 검사 불가", "줄 간격: 일부 검사 불가", "문서 분량: 기준 일치", "필수 단어: 불일치", "맞춤법·띄어쓰기: 검사 범위 내 수정 후보 없음", "슬라이드 1 · 문단 1"]) {
       assert.ok(inspectionText.includes(expected), expected);
     }
     const downloadEvent = page.waitForEvent("download");

@@ -15,7 +15,8 @@ for (const format of ["docx", "pptx", "hwpx", "pdf"]) {
   const item = check(doc(wrong, format));
   assert.equal(item.status, "fail");
   assert.equal(item.counts.fail, 5);
-  assert.ok(item.counts.unknown >= 1);
+  assert.equal(item.counts.unknown, 0, "일반 기능 한계를 실제 미검사로 집계하면 안 됨");
+  assert.ok(item.details.some((r) => r.kind === "notice"));
   for (const row of item.details.filter((r) => r.status === "fail")) {
     assert.ok(row.suggestion && row.text.includes(row.actual));
     assert.equal(wrong.slice(row.offset, row.offset + row.length), row.actual);

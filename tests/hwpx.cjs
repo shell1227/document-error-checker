@@ -25,6 +25,10 @@ async function main() {
     assert.equal(doc.paragraphs[0].lineSpacing.value, 160);
     const pass = await inspect(doc);
     assert.deepEqual(pass.items.map((i) => i.status), ["pass", "pass", "pass", "pass", "unknown", "pass"]);
+    const inherited = fixture();
+    for (const name of ["Contents/section0.xml", "Contents/section1.xml"]) inherited[name] = inherited[name].replaceAll(' paraPrIDRef="0"', '').replaceAll(' charPrIDRef="0"', '');
+    // 표를 감싼 빈 문단은 제외하고, 실제 텍스트 문단은 styleIDRef로 상속합니다.
+    assert.deepEqual((await inspect(await extract(inherited))).items.map((i) => i.status), ["pass", "pass", "pass", "pass", "unknown", "pass"]);
     const fail = await inspect(doc, { ...good, fontFamily: "돋움", fontSize: 11, alignment: "center", lineSpacing: 150, requiredWords: ["없는단어"] });
     assert.deepEqual(fail.items.map((i) => i.status), ["fail", "fail", "fail", "fail", "unknown", "fail"]);
     const broken = fixture();

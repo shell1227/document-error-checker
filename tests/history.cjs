@@ -119,7 +119,7 @@ async function main() {
     assert.equal(records[0].document_type, "general", "문서 종류 선택 없이 DB 호환값을 저장해야 함");
     assert.deepEqual(records[0].criteria.requiredWords, ["서론"]);
     assert.ok(records[0].inspected_at);
-    assert.ok(records[0].result.items.some((item) => item.id === "spelling" && item.counts.unknown > 0));
+    assert.ok(records[0].result.items.some((item) => item.id === "spelling" && item.status !== "pass" && item.counts.unknown === item.details.filter((r) => r.status === "unknown" && r.kind !== "notice").length && item.details.some((r) => r.kind === "notice")));
     const spelling = records[0].result.items.find((item) => item.id === "spelling");
     assert.equal(spelling.counts.fail, 2);
     assert.ok(spelling.details.some((row) => row.suggestion === "봬요"));
