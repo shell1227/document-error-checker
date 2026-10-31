@@ -39,5 +39,5 @@ assert.equal(uncertain.counts.fail, 0);
 assert.equal(uncertain.status, "unknown");
 assert.ok(uncertain.details.some((r) => r.suggestion));
 assert.ok(check(doc("되요. ".repeat(600))).details.some((r) => r.location === "검사 제한"));
-assert.ok(check(doc("가".repeat(300001))).details.some((r) => r.location === "검사 제한"));
+assert.equal(check(doc("가".repeat(300001) + " 뵈요.")).counts.fail, 1, "긴 문단 뒤쪽을 검사하지 않음");
 console.log("PASS: Korean sentences across four formats, spelling/spacing suggestions, correct/unsupported text stays unknown, boundaries, URL/code exclusions, positions, uncertain extraction and limits");

@@ -50,6 +50,13 @@ function renderInspection(report) {
       disclosure.appendChild(note);
     }
     section.append(heading, summary, disclosure);
+    if (item.id === "spelling" && item.coverage) {
+      const coverage = document.createElement("p");
+      const c = item.coverage;
+      coverage.className = "help-text";
+      coverage.textContent = `바른 검사 범위: 한국어 포함 구간 ${c.totalCharacters}자 중 ${c.completedCharacters}자 응답 수신 · ${c.totalCharacters - c.completedCharacters}자 미검사 · 한국어 없는 구간 ${c.excludedCharacters}자 제외. 응답 수신은 전체 정상 판정을 뜻하지 않습니다.`;
+      section.insertBefore(coverage, disclosure);
+    }
     container.appendChild(section);
   }
   document.getElementById("inspectionSection").hidden = false;

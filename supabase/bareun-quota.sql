@@ -24,7 +24,7 @@ declare
   personal public.bareun_usage;
 begin
   if uid is null or p_request is null or p_calls is null or p_chars is null or
-    p_calls not between 1 and 3 or p_chars not between 1 and 3000 then
+    p_calls not between 1 and 10 or p_chars not between 1 and 10000 then
     return jsonb_build_object('allowed', false);
   end if;
   user_key := 'u:' || uid::text || ':' || day_key;
@@ -39,7 +39,7 @@ begin
   select * into daily from public.bareun_usage where period = day_key;
   select * into personal from public.bareun_usage where period = user_key;
   if monthly.calls + p_calls > 100 or monthly.chars + p_chars > 20000 or
-    daily.calls + p_calls > 20 or personal.calls + p_calls > 9 then
+    daily.calls + p_calls > 20 or personal.calls + p_calls > 20 then
     return jsonb_build_object('allowed', false);
   end if;
   insert into public.bareun_requests(id, user_id) values(p_request, uid);

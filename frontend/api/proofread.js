@@ -16,9 +16,9 @@ function createHandler(env = process.env, fetcher = fetch) {
     try { const u = new URL(env.SUPABASE_URL); if (u.protocol !== "https:" || u.pathname !== "/" || u.username || u.password || u.search || u.hash) throw 0; base = u.origin; }
     catch { return send(503, "서버 연결 설정을 확인해야 합니다."); }
     const body = req.body;
-    if (!body || JSON.stringify(body).length > 12000 || body.consent !== true || !Array.isArray(body.chunks) || body.chunks.length < 1 || body.chunks.length > 3 ||
+    if (!body || JSON.stringify(body).length > 40000 || body.consent !== true || !Array.isArray(body.chunks) || body.chunks.length < 1 || body.chunks.length > 10 ||
       body.chunks.some((text) => typeof text !== "string" || !text.trim() || text.length > 1000) ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestId || "")) return send(400, "동의 여부와 검사 길이를 확인하세요. 한 번에 최대 3,000자·3회까지만 검사합니다.");
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestId || "")) return send(400, "동의 여부와 검사 길이를 확인하세요. 한 번에 최대 10,000자·10회까지만 검사합니다.");
     const authorization = req.headers.authorization;
     if (typeof authorization !== "string" || !/^Bearer \S+$/.test(authorization)) return send(401, "검사 사용자 인증이 필요합니다.");
     const headers = { apikey: env.SUPABASE_PUBLISHABLE_KEY, Authorization: authorization, "Content-Type": "application/json" };

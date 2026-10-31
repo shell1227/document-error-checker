@@ -1,88 +1,168 @@
-// 동의한 경우에만 우리 서버 함수에 텍스트를 보냅니다. 키는 이 파일에 없습니다.
+// 규칙 검사 결과와 무관하게 전체 추출 구간을 순서대로 외부 검사 대상으로 만듭니다.
 const bareunProofreader = (() => {
   const cache = new Map();
-  const unknown = (reason) => ({ status: "unknown", location: "바른 외부 검사", expected: "한국어 맞춤법·띄어쓰기", actual: "검사 불가", reason });
-  function chunks(document) {
-    const segments = document.format === "pdf" ? document.pages.map((p) => ({ text: p.text, location: `페이지 ${p.number}` }))
-      : document.format === "pptx" ? document.slides.flatMap((s) => s.paragraphs.map((p) => ({ text: p.text, location: `슬라이드 ${s.number} · 문단 ${p.index}` })))
-        : document.paragraphs.map((p) => ({ text: p.text, location: `${p.source} · 문단 ${p.index}` }));
-    const selected = [];
-    let skipped = false;
-    // 문단을 중간에서 잘라 문맥을 바꾸지 않습니다. 1,000자 초과 문단은 검사 불가로 남깁니다.
-    for (const segment of segments) {
-      if (!/[가-힣]/.test(segment.text)) continue;
-      if (segment.text.length > 1000 || selected.length >= 3) { skipped = true; continue; }
-      selected.push(segment);
+  const unknown = (location, reason) => ({ status: "unknown", location, expected: "바른 추가 검사", actual: "검사 불가", reason });
+  function plan(document) {
+    const segments = koreanProofreader.segments(document);
+    const batches = [];
+    const coverage = segments.map((s) => ({ key: s.key, location: s.location, length: s.text.length,
+      applicable: /\p{Script=Hangul}/u.test(s.text), completed: [], uninspected: [] }));
+    for (const [i, segment] of segments.entries()) {
+      if (!coverage[i].applicable) continue;
+      let start = 0;
+      while (start < segment.text.length) {
+        let batch = batches.at(-1);
+        if (!batch || batch.text.length >= 1000) {
+          if (batches.length >= 10) break;
+          batch = { text: "", parts: [] }; batches.push(batch);
+        }
+        const separator = batch.text ? "\n" : "";
+        let available = 1000 - batch.text.length - separator.length;
+        // 작은 잔여 공간 때문에 문단을 불필요하게 자르지 않습니다.
+        if (start === 0 && segment.text.length <= 1000 && segment.text.length > available && batch.text) {
+          if (batches.length >= 10) break;
+          batch = { text: "", parts: [] }; batches.push(batch); available = 1000;
+        }
+        const prefix = batch.text ? "\n" : "";
+        available = 1000 - batch.text.length - prefix.length;
+        if (available <= 0) { batch.text += "\n"; continue; }
+        let end = Math.min(segment.text.length, start + available);
+        let forced = false;
+        if (end < segment.text.length) {
+          const text = segment.text.slice(start, end);
+          const boundary = Math.max(text.lastIndexOf("\n"), text.lastIndexOf(" "));
+          if (boundary >= Math.floor(available / 2)) end = start + boundary + 1;
+          else {
+            forced = true;
+            if (/[\uD800-\uDBFF]/.test(segment.text[end - 1]) && /[\uDC00-\uDFFF]/.test(segment.text[end])) end--;
+          }
+        }
+        const chunkStart = batch.text.length + prefix.length;
+        if (end <= start) { batch.text += prefix; continue; }
+        const piece = segment.text.slice(start, end);
+        if (!piece.trim()) {
+          const reason = "공백만 있는 분할 구간은 외부로 보내지 않았습니다.";
+          const previous = coverage[i].uninspected.at(-1);
+          if (previous?.end === start && previous.reason === reason) previous.end = end;
+          else coverage[i].uninspected.push({ start, end, reason });
+          start = end;
+          if (!batch.parts.length) batches.pop();
+          continue;
+        }
+        batch.text += prefix + piece;
+        batch.parts.push({ segment: i, key: segment.key, location: segment.location, start, end, chunkStart, forced: forced || start > 0 || end < segment.text.length });
+        start = end;
+      }
+      if (start < segment.text.length) coverage[i].uninspected.push({ start, end: segment.text.length, reason: "한 번에 최대 1만 자·10회 외부 검사 제한" });
     }
-    return { selected, skipped };
+    return { segments, batches, coverage };
   }
   async function check(document, signal) {
-    const { selected, skipped } = chunks(document);
+    const { segments, batches, coverage } = plan(document);
     const rows = [];
-    if (!selected.length) return [unknown("검사 가능한 한국어 문단이 없습니다. 문단당 1,000자 이하만 보낼 수 있습니다.")];
-    if (skipped) rows.push(unknown("최대 3개 문단·합계 3,000자까지만 외부 검사합니다. 긴 문단과 남은 내용은 기본 규칙으로만 검사했습니다."));
+    const results = new Array(batches.length);
+    let requestedCalls = 0;
+    let failure = "외부 검사 요청이 완료되지 않았습니다.";
     try {
-      const texts = selected.map((s) => s.text);
-      const key = JSON.stringify(texts);
-      let data = cache.get(key);
-      if (!data) {
-        const token = await inspectionHistory.accessToken();
-        const response = await fetch("/api/proofread", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ consent: true, requestId: crypto.randomUUID(), chunks: texts }),
-          signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(45000)]) : AbortSignal.timeout(45000) });
-        data = await response.json();
-        if (!response.ok) throw new Error(data.message || "외부 검사 서버를 사용할 수 없습니다.");
-        if (!Array.isArray(data.results) || data.results.length > selected.length) throw new Error("외부 검사 응답 형식을 확인하지 못했습니다.");
-        if (data.results.length === selected.length && data.results.every((r) => r.ok === true)) {
-          if (cache.size >= 5) cache.delete(cache.keys().next().value);
-          cache.set(key, data);
-        }
-      }
-      selected.forEach((segment, i) => {
-        const result = data.results[i];
-        if (!result?.ok || !Array.isArray(result.findings)) { rows.push(unknown(result?.message || "일부 문단의 외부 검사가 완료되지 않았습니다.")); return; }
-        let valid = 0;
-        for (const finding of result.findings) {
-          const { original, suggestion, offset } = finding;
-          if (typeof original !== "string" || typeof suggestion !== "string" || !Number.isInteger(offset) || offset < 0 ||
-            offset > segment.text.length || segment.text.slice(offset, offset + original.length) !== original) {
-            rows.push(unknown("수정 후보와 원문 위치가 일치하지 않아 확정하지 않았습니다.")); continue;
-          }
-          valid++;
-          const uncertain = document.textUncertain || !["GRAMMER", "WORD", "SPACING", "STANDARD", "TYPO", "FOREIGN_WORD", "CONFUSABLE_WORDS", "SENTENCE"].includes(finding.category);
-          rows.push({ status: uncertain ? "unknown" : "fail", location: `${segment.location} · 위치 ${offset + 1}`,
-            actual: original || "(빈 위치)", expected: suggestion, suggestion, offset, length: original.length,
-            provider: "bareun", category: finding.category, reason: `바른 API: ${finding.reason}${uncertain ? " 최종 표시 또는 제안이 불확실하여 확인이 필요합니다." : ""}`,
-            text: segment.text.slice(Math.max(0, offset - 45), Math.min(segment.text.length, offset + original.length + 45)) });
-        }
-        if (result.incomplete) rows.push(unknown("응답의 일부 수정 위치·공백 처리를 해석하지 못했습니다. 원문을 자동 수정하지 않습니다."));
-        if (typeof result.wholeRevision === "string" && result.wholeRevision !== segment.text && result.wholeRevision.length <= 3000) {
-          rows.push({ status: "unknown", location: segment.location, actual: segment.text, expected: result.wholeRevision,
-            suggestion: result.wholeRevision, provider: "bareun", category: "CONFIRM",
-            reason: "바른의 전체 교정문입니다. 부분 수정 위치를 확정하지 못했으므로 원문과 직접 비교해야 합니다.", text: segment.text });
-        }
-        if (!valid) rows.push(unknown(`${segment.location}: API가 수정 후보를 반환하지 않았습니다. 문장 전체가 정확하다는 뜻은 아닙니다.`));
+      const missing = [];
+      const pending = new Map();
+      batches.forEach((b, i) => {
+        if (cache.has(b.text)) results[i] = cache.get(b.text);
+        else if (pending.has(b.text)) pending.get(b.text).push(i);
+        else { pending.set(b.text, [i]); missing.push(i); }
       });
+      if (missing.length) {
+        const token = await inspectionHistory.accessToken();
+        requestedCalls = missing.length;
+        const response = await fetch("/api/proofread", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ consent: true, requestId: crypto.randomUUID(), chunks: missing.map((i) => batches[i].text) }),
+          signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(125000)]) : AbortSignal.timeout(125000) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "외부 검사 서버를 사용할 수 없습니다.");
+        if (!Array.isArray(data.results) || data.results.length > missing.length) throw new Error("외부 검사 응답 형식 오류");
+        missing.forEach((index, j) => {
+          for (const target of pending.get(batches[index].text)) results[target] = data.results[j];
+          if (data.results[j]?.ok === true) {
+            if (cache.size >= 100) cache.delete(cache.keys().next().value);
+            cache.set(batches[index].text, data.results[j]);
+          }
+        });
+      }
     } catch (error) {
       if (signal?.aborted) throw error;
-      rows.push(unknown(error.message === "Failed to fetch" ? "외부 검사에 연결하지 못했습니다. 기본 규칙 검사 결과를 확인하세요." : error.message));
+      failure = error.message === "Failed to fetch" ? "외부 검사에 연결하지 못했습니다. 기본 규칙 검사는 유지합니다." : error.message;
     }
-    rows.push(unknown("외부 검사도 문맥·고유명사·추출 오류를 완전하게 판단하지 못합니다. 제안은 원문을 확인한 뒤 사용하세요."));
+    batches.forEach((batch, i) => {
+      const result = results[i];
+      const ok = result?.ok === true && Array.isArray(result.findings);
+      for (const part of batch.parts) {
+        const state = coverage[part.segment];
+        if (ok) state.completed.push({ start: part.start, end: part.end });
+        else state.uninspected.push({ start: part.start, end: part.end, reason: result?.message || failure });
+      }
+      if (!ok) return;
+      for (const finding of result.findings) {
+        const { original, suggestion, offset } = finding;
+        const part = batch.parts.find((p) => Number.isInteger(offset) && offset >= p.chunkStart && offset + (original?.length || 0) <= p.chunkStart + p.end - p.start);
+        if (!part || typeof original !== "string" || typeof suggestion !== "string" || batch.text.slice(offset, offset + original.length) !== original) {
+          rows.push(unknown(`외부 검사 묶음 ${i + 1}`, "원문 위치가 일치하지 않거나 문단 경계를 넘는 수정이어서 확정하지 않았습니다.")); continue;
+        }
+        const localOffset = part.start + offset - part.chunkStart;
+        const uncertain = document.textUncertain || part.forced || !["GRAMMER", "WORD", "SPACING", "STANDARD", "TYPO", "FOREIGN_WORD", "CONFUSABLE_WORDS", "SENTENCE"].includes(finding.category);
+        rows.push({ status: uncertain ? "unknown" : "fail", location: `${part.location} · 위치 ${localOffset + 1}`,
+          segmentKey: part.key, offset: localOffset, length: original.length, actual: original || "(빈 위치)", expected: suggestion,
+          suggestion, provider: "bareun", category: finding.category,
+          reason: `바른 API: ${finding.reason}${uncertain ? " 분할 문맥·최종 표시 또는 제안의 확인이 필요합니다." : ""}`,
+          text: segments[part.segment].text.slice(Math.max(0, localOffset - 45), localOffset + original.length + 45) });
+      }
+      if (result.incomplete) rows.push(unknown(`외부 검사 묶음 ${i + 1}`, "API 응답은 받았지만 일부 수정 위치·공백 처리를 해석하지 못했습니다."));
+      if (typeof result.wholeRevision === "string" && result.wholeRevision !== batch.text && result.wholeRevision.length <= 3000) {
+        rows.push({ status: "unknown", location: `외부 검사 묶음 ${i + 1}`, actual: batch.text, expected: result.wholeRevision,
+          suggestion: result.wholeRevision, provider: "bareun", category: "CONFIRM", reason: "부분 위치를 확정하지 못한 전체 교정문입니다. 원문과 직접 비교하세요.", text: batch.text });
+      }
+      if (batch.parts.some((p) => p.forced)) rows.push(unknown(`외부 검사 묶음 ${i + 1}`, "긴 문단을 나누어 검사했습니다. 분할 경계의 문맥은 완전하게 검사하지 못합니다."));
+    });
+    for (const state of coverage) {
+      for (const range of state.uninspected) rows.push(unknown(`${state.location} · 위치 ${range.start + 1}~${range.end}`, range.reason));
+    }
+    const applicable = coverage.filter((s) => s.applicable);
+    rows.coverage = { totalCharacters: applicable.reduce((n, s) => n + s.length, 0),
+      completedCharacters: applicable.reduce((n, s) => n + s.completed.reduce((a, r) => a + r.end - r.start, 0), 0),
+      excludedCharacters: coverage.filter((s) => !s.applicable).reduce((n, s) => n + s.length, 0), segments: coverage,
+      plannedBatches: batches.length, completedBatches: results.filter((r) => r?.ok === true).length, requestedCalls };
+    rows.push(unknown("외부 검사 범위", "오류 후보가 없어도 전체 정상이라고 판정하지 않습니다. API 응답 수신 범위와 수정 해석의 불확실성은 별개입니다."));
     return rows;
+  }
+  // 같은 위치의 겹친 원문이 같은 교정 결과를 만들 때만 한 후보로 합칩니다.
+  function sameCorrection(a, b) {
+    if (!a.suggestion || !b.suggestion || !a.segmentKey || a.segmentKey !== b.segmentKey || !Number.isInteger(a.offset) || !Number.isInteger(b.offset)) return false;
+    const endA = a.offset + a.length, endB = b.offset + b.length;
+    if (a.offset >= endB || b.offset >= endA) return a.offset === b.offset && a.actual === b.actual && a.suggestion === b.suggestion;
+    const start = Math.min(a.offset, b.offset), end = Math.max(endA, endB);
+    const chars = new Array(end - start);
+    for (const row of [a, b]) for (let i = 0; i < row.actual.length; i++) {
+      const at = row.offset - start + i;
+      if (chars[at] !== undefined && chars[at] !== row.actual[i]) return false;
+      chars[at] = row.actual[i];
+    }
+    if (chars.includes(undefined)) return false;
+    const original = chars.join("");
+    const apply = (r) => original.slice(0, r.offset - start) + r.suggestion + original.slice(r.offset - start + r.length);
+    return apply(a) === apply(b);
   }
   function merge(report, rows) {
     const item = report.items.find((i) => i.id === "spelling");
     if (!item) return;
-    // 같은 원문/제안은 규칙 검사와 외부 검사에서 중복 표시하지 않습니다.
     for (const row of rows) {
-      if (row.suggestion && item.details.some((r) => r.suggestion === row.suggestion && r.actual === row.actual && r.offset === row.offset &&
-        r.location.split(/ · (?:\d+줄|위치)/)[0] === row.location.split(/ · (?:\d+줄|위치)/)[0])) continue;
+      const existing = item.details.find((r) => sameCorrection(r, row));
+      if (existing) { existing.providers = [...new Set([...(existing.providers || ["local-rules"]), row.provider || "bareun"])]; continue; }
       item.details.push(row);
     }
     item.counts = { pass: 0, fail: 0, unknown: 0 };
     item.details.forEach((r) => item.counts[r.status]++);
     item.status = item.counts.fail ? "fail" : "unknown";
     item.providers = ["local-rules", "bareun"];
+    item.coverage = rows.coverage;
   }
-  return { check, merge };
+  return { check, merge, plan };
 })();

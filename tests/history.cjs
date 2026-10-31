@@ -213,11 +213,13 @@ async function main() {
     await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("저장했습니다"));
     const externalRecord = records.at(-1);
     assert.equal(externalRecord.criteria.externalProofreading, true);
+    assert.ok(externalRecord.result.items.find((i) => i.id === "spelling").coverage.completedCharacters > 0);
     assert.ok(externalRecord.result.items.find((i) => i.id === "spelling").details.some((r) => r.provider === "bareun" && r.suggestion === "서문" && r.status === "unknown"));
     await page.goto(`${base}/history.html`);
     await page.locator(".history-open").first().click();
     await page.locator("#historyDetail").waitFor({ state: "visible" });
     assert.ok((await page.locator("#inspectionResults").textContent()).includes("수정 제안: 서문"));
+    assert.ok((await page.locator("#inspectionResults").textContent()).includes("바른 검사 범위:"));
     // 저장 크기 제한은 검사 결과 다운로드를 막지 않습니다.
     const tooLarge = await page.evaluate(async (record) => {
       try { await inspectionHistory.save({ ...record, result: { scope: "x".repeat(3 * 1024 * 1024) } }); return ""; }

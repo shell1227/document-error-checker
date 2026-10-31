@@ -32,7 +32,7 @@ async function main() {
   assert.equal((await invoke({}, { ...env, BAREUN_API_KEY: "" })).status, 503);
   assert.equal((await invoke({ body: { ...body(), consent: false } })).status, 400);
   assert.equal((await invoke({ body: { ...body(), chunks: ["가".repeat(1001)] } })).status, 400);
-  assert.equal((await invoke({ body: { ...body(), chunks: ["가", "나", "다", "라"] } })).status, 400);
+  assert.equal((await invoke({ body: { ...body(), chunks: new Array(11).fill("가") } })).status, 400);
   assert.equal((await invoke({ headers: { origin: "https://checker.test" } })).status, 401);
   assert.equal(calls.length, 0);
   quota = false;

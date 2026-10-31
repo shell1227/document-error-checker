@@ -25,7 +25,7 @@ URL·이메일·백틱 구간을 제외하며 긴 어절 내부의 부분 문자
 띄어쓰기를 판단하는 사전/형태소 모델은 없습니다. 예를 들어 `먹을수있다`는 이 버전의
 규칙 밖입니다. 인용된 오표기·고유명사는 의도적인 표현일 수 있어 후보를 사람이 확인해야 합니다.
 유니코드 NFC/NFD를 자동 변환하지 않으며 글자 위치 offset은 원문 UTF-16 인덱스입니다.
-최대 30만 자, 수정 후보 500개를 처리하며 나머지는 검사 불가로 알립니다.
+전체 추출 텍스트를 검사합니다. 상세 후보는 500개까지만 보관하지만 그 뒤도 계속 검사하며 추가 검출 수를 알립니다.
 
 Supabase의 기존 결과 JSON 안에 suggestion/ruleId/offset/length/source를 보관합니다.
 새 SQL이나 컬럼은 필요 없습니다. 기존 기록을 열어도 당시 결과가 유지되며 재검사하지 않습니다.
@@ -45,3 +45,12 @@ node tests/history.cjs
 - https://www.korean.go.kr/front/onlineQna/onlineQnaView.do?mn_id=&pageIndex=1&qna_seq=324370
 - https://www.scourt.go.kr/portal/gongbo/PeoplePopupView.work?gubun=24&sDate=201902&seqNum=2238
 - https://languagetool.org/lp/api
+
+## 전체 범위 추가 검사 개선
+
+`node tests/bareun-client.cjs`에서 문단 20개를 한 호출로 묶는 경우, 1,000자 초과 문단,
+1만 자 한도, 부분 응답, 같은 위치/다른 위치의 반복 오류 및 겹친 범위의 동일 교정을 확인합니다.
+규칙이 찾은 문단도 API 요청에 포함되고 같은 교정만 병합되는지 검증합니다.
+임시 폴더의 실제 DOCX/PPTX/HWPX/PDF 파일이 있으면 추출기를 거쳐 API 응답 수신 범위와
+미검사 범위의 합이 전체 대상 글자 수와 일치하는지도 확인합니다. API 응답은 모의입니다.
+실제 문서는 저장소에 넣거나 외부로 전송하지 않습니다.
