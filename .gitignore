@@ -179,3 +179,8 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# 서버 키와 로컬 Vercel 설정
+.env.*
+!.env.example
+.vercel/

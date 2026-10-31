@@ -87,10 +87,14 @@ async function main() {
     const context = await browser.newContext();
     await context.route(`${api}/**`, mockApi);
     await context.route("**/supabase-config.js", (route) => route.fulfill({ contentType: "text/javascript", body: `window.documentCheckerCloudConfig={url:"${api}",publishableKey:"sb_publishable_test"};` }));
+    await context.route("**/api/proofread", (route) => {
+      const { chunks } = route.request().postDataJSON();
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ provider: "bareun", results: chunks.map(() => ({ ok: true, incomplete: false, findings: [{ original: "서론", suggestion: "서문", offset: 0, category: "CONFIRM", reason: "저장·조회 테스트용 확인 필요 후보" }] })) }) });
+    });
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    async function inspect(format = "docx", target = page) {
+    async function inspect(format = "docx", target = page, external = false) {
       await target.goto(base);
       await target.locator("#documentFile").setInputFiles({ name: `sample.${format}`, mimeType: "application/octet-stream", buffer: format === "pptx" ? pptxFile : format === "hwpx" ? hwpxFile : format === "pdf" ? pdfFile : file });
       await target.locator('[value="report"]').check();
@@ -98,6 +102,7 @@ async function main() {
       await target.locator('[value="spelling"][name="inspectionItem"]').check();
       await target.getByRole("button", { name: "다음", exact: true }).click();
       await target.waitForURL("**/settings.html");
+      if (external) await target.locator("#externalProofreading").check();
       if (format === "pdf") {
         await target.locator("#customWord").fill("Introduction");
         await target.locator("#addWordButton").click();
@@ -204,6 +209,15 @@ async function main() {
     mode = "ok";
     await page.locator("#retrySaveHistory").click();
     await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("저장했습니다"));
+    await inspect("docx", page, true);
+    await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("저장했습니다"));
+    const externalRecord = records.at(-1);
+    assert.equal(externalRecord.criteria.externalProofreading, true);
+    assert.ok(externalRecord.result.items.find((i) => i.id === "spelling").details.some((r) => r.provider === "bareun" && r.suggestion === "서문" && r.status === "unknown"));
+    await page.goto(`${base}/history.html`);
+    await page.locator(".history-open").first().click();
+    await page.locator("#historyDetail").waitFor({ state: "visible" });
+    assert.ok((await page.locator("#inspectionResults").textContent()).includes("수정 제안: 서문"));
     // 저장 크기 제한은 검사 결과 다운로드를 막지 않습니다.
     const tooLarge = await page.evaluate(async (record) => {
       try { await inspectionHistory.save({ ...record, result: { scope: "x".repeat(3 * 1024 * 1024) } }); return ""; }

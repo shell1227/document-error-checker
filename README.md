@@ -22,6 +22,8 @@ Python이 있다면 저장소에서 `python -m http.server 8000 --directory fron
 Vercel 설정: Root Directory `frontend`, Preset `Other`, Build Command 빈 값,
 Output Directory `.`. 환경 변수는 필요하지 않습니다.
 Supabase는 `frontend/supabase-config.js`의 공개 설정 두 개로 연결합니다.
+바른 외부 검사는 선택 기능입니다. 사용하는 경우에만 서버 환경 변수와 호출 제한 SQL이 필요합니다.
+설정 순서는 [바른 API 연결](supabase/BAREUN.md)을 참고하세요. 바른 키를 공개 설정 파일에 넣지 마세요.
 설정이 비어 있거나 연결에 실패해도 문서 검사는 동작합니다.
 프로젝트 생성부터 SQL/RLS·익명 인증·연결 확인까지는 [Supabase 설정 순서](supabase/README.md)를 참고하세요.
 
@@ -38,6 +40,8 @@ Supabase는 `frontend/supabase-config.js`의 공개 설정 두 개로 연결합�
 - `settings.js`: 기존 기준 저장 및 추출 결과 표시
 - `document-inspector.js`: 화면과 독립적인 기준 비교
 - `korean-proofreader.js`: 네 형식의 추출 텍스트에 공통 적용하는 제한된 한국어 규칙 검사
+- `bareun-proofreader.js`: 동의한 텍스트의 외부 검사·수정 위치 연결·기본 결과 병합
+- `api/proofread.js`: Vercel 서버 함수. 비밀 키로 바른 CorrectError 호출 및 사용자 인증·DB 사용량 예약
 - `inspection-view.js`: 항목별 결과와 불일치/검사 불가 사유 표시
 - `history-store.js`: Supabase 익명 인증·자동 저장·기록 목록/상세 조회
 - `history-save.js`: 검사 결과와 독립적인 저장 상태 및 재시도

@@ -119,5 +119,13 @@ const inspectionHistory = (() => {
       return data;
     } catch (error) { throw friendlyError(error); }
   }
-  return { configured, createRecord, save, list, get, pageSize };
+  async function accessToken() {
+    try {
+      const db = await authenticatedClient();
+      const { data, error } = await db.auth.getSession();
+      if (error || !data.session?.access_token) throw historyError("외부 검사 사용자 인증을 준비하지 못했습니다.");
+      return data.session.access_token;
+    } catch (error) { throw friendlyError(error); }
+  }
+  return { configured, createRecord, save, list, get, pageSize, accessToken };
 })();

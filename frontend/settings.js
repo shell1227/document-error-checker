@@ -1,5 +1,7 @@
 const setupRaw = sessionStorage.getItem("documentCheckerSetup");
 let setup = null;
+let inspectionController = null;
+let inspectionRun = 0;
 try { setup = setupRaw ? JSON.parse(setupRaw) : null; }
 catch { sessionStorage.removeItem("documentCheckerSetup"); }
 
@@ -98,6 +100,8 @@ function showMessage(text, type = "error") {
 }
 
 function clearMessage() {
+  inspectionController?.abort();
+  inspectionRun++;
   settingsMessage.textContent = "";
   settingsMessage.classList.remove("success-message", "error-message");
   document.getElementById("inspectionSection").hidden = true;
@@ -273,6 +277,7 @@ function validateCriteria() {
 
 function buildCriteriaData() {
   const criteria = {};
+  if (hasItem("spelling")) criteria.externalProofreading = document.getElementById("externalProofreading").checked;
 
   if (hasItem("font-family")) {
     criteria.fontFamily = fontFamilyInput.value.trim();
@@ -358,6 +363,9 @@ criteriaForm.addEventListener("submit", async (event) => {
   }
 
   const criteriaData = buildCriteriaData();
+  const run = inspectionRun;
+  inspectionController = new AbortController();
+  const signal = inspectionController.signal;
 
   const button = criteriaForm.querySelector('button[type="submit"]');
   button.disabled = true;
@@ -380,6 +388,7 @@ criteriaForm.addEventListener("submit", async (event) => {
     showMessage("검사 기준이 저장되었습니다. 문서 정보를 읽고 있습니다.", "success");
     const file = await documentFileStore.load(setup?.fileId);
     extractedDocument = await documentReader.extract(file, setup?.extension);
+    if (run !== inspectionRun || signal.aborted) return;
     if (JSON.stringify(criteriaData) !== JSON.stringify(buildCriteriaData())) {
       throw new Error("문서를 읽는 동안 검사 기준이 변경되었습니다. 다시 검사 시작을 눌러주세요.");
     }
@@ -401,9 +410,25 @@ criteriaForm.addEventListener("submit", async (event) => {
     document.getElementById("extractionSection").hidden = false;
     inspectionReport = documentInspector.inspect(extractedDocument, selectedItems, criteriaData);
     renderInspection(inspectionReport);
+    if (criteriaData.externalProofreading) {
+      showMessage("기본 검사는 완료되었습니다. 동의한 텍스트의 바른 외부 검사를 진행합니다.", "success");
+      try {
+        const rows = await bareunProofreader.check(extractedDocument, signal);
+        if (run !== inspectionRun || signal.aborted) return;
+        bareunProofreader.merge(inspectionReport, rows);
+      } catch {
+        if (run !== inspectionRun || signal.aborted) return;
+        const item = inspectionReport.items.find((i) => i.id === "spelling");
+        item.details.push({ status: "unknown", location: "바른 외부 검사", expected: "외부 검사 완료", actual: "검사 불가", reason: "외부 검사 도구를 사용할 수 없습니다. 기본 규칙과 문서 형식 검사 결과는 유지합니다." });
+        item.counts.unknown++;
+        item.status = item.counts.fail ? "fail" : "unknown";
+      }
+      renderInspection(inspectionReport);
+    }
     showMessage("검사가 완료되었습니다. 불일치와 검사 불가 항목을 확인하세요.", "success");
     inspectionSaving.save(inspectionReport, setup);
   } catch (error) {
+    if (run !== inspectionRun || signal.aborted) return;
     showMessage(error.message || "문서 정보를 읽지 못했습니다.");
   } finally { button.disabled = false; }
 });

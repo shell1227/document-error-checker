@@ -11,6 +11,7 @@ const dateLabel = (value) => new Intl.DateTimeFormat("ko-KR", { dateStyle: "medi
 function showCriteria(record) {
   const criteria = record.criteria;
   const fields = [
+    ["externalProofreading", "바른 외부 검사 요청", (value) => value ? "동의하여 요청함 (실제 성공 여부는 결과 확인)" : "사용하지 않음"],
     ["fontFamily", "기준 글꼴", (value) => value],
     ["fontSize", "기준 글자 크기", (value) => `${value} pt`],
     ["alignment", "문단 정렬", (value) => ({ left: "왼쪽", center: "가운데", right: "오른쪽", justify: "양쪽" }[value] || value)],
