@@ -12,17 +12,18 @@ async function readDocx(read) {
   };
   const theme = await related("theme"), settings = await related("settings"), numbering = await related("numbering");
   const themeLanguage = all(settings, "w", "themeFontLang")[0];
-  function themeFont(token, key) {
+  function themeFont(token, key, textScript, runLanguage) {
     if (!/^(major|minor)(Ascii|HAnsi|EastAsia|Bidi)$/.test(token || "")) return null;
     const collection = all(theme, "a", token.startsWith("major") ? "majorFont" : "minorFont")[0];
-    const language = a(themeLanguage, key === "eastAsia" ? "eastAsia" : key === "cs" ? "bidi" : "val");
-    const script = /^ko(-|$)/i.test(language || "") ? "Hang" : /^ja(-|$)/i.test(language || "") ? "Jpan"
+    const language = runLanguage || a(themeLanguage, key === "eastAsia" ? "eastAsia" : key === "cs" ? "bidi" : "val");
+    const languageScript = /^ko(-|$)/i.test(language || "") ? "Hang" : /^ja(-|$)/i.test(language || "") ? "Jpan"
       : /^zh-(CN|SG|Hans)(-|$)/i.test(language || "") ? "Hans" : /^zh-(TW|HK|MO|Hant)(-|$)/i.test(language || "") ? "Hant" : null;
+    // 한글·가나는 문자 자체로 구분합니다. 공유 한자는 언어 설정이 필요합니다.
+    const script = key === "eastAsia" ? ["Hang", "Jpan", "Hans", "Hant"].includes(textScript) ? textScript : languageScript : null;
+    const fixed = a(c(collection, "a", key === "eastAsia" ? "ea" : key === "cs" ? "cs" : "latin"), "typeface");
     const supplemental = script ? all(collection, "a", "font").filter((f) => a(f, "script") === script) : [];
-    const name = script ? supplemental.length === 1 ? a(supplemental[0], "typeface") : null
-      : language && !/^(en|fr|de|es|it|pt|vi|id|nl)(-|$)/i.test(language) ? null
-        : a(c(collection, "a", key === "eastAsia" ? "ea" : key === "cs" ? "cs" : "latin"), "typeface");
-    return name ? { name, source: `DOCX 테마 ${token}${language ? ` · ${language}` : ""}` } : null;
+    const name = fixed || (script && supplemental.length === 1 ? a(supplemental[0], "typeface") : null);
+    return name ? { name, source: `DOCX 테마 ${token} · ${fixed ? "영역 글꼴" : `문자 종류 ${script}`}${language ? ` · 언어 ${language}` : ""}` } : null;
   }
   const styles = new Map(all(stylesDoc, "w", "style").map((s) => [a(s, "styleId"), s]));
   const defaultStyle = [...styles.values()].find((s) => a(s, "type") === "paragraph" && ["1", "true"].includes(a(s, "default")));
@@ -30,6 +31,9 @@ async function readDocx(read) {
   function runFormat(properties) {
     const fonts = c(properties, "w", "rFonts");
     const result = {};
+    const language = c(properties, "w", "lang");
+    if (a(language, "eastAsia") !== null) result.eastAsiaLanguage = a(language, "eastAsia");
+    if (a(language, "val") !== null) result.language = a(language, "val");
     for (const key of ["ascii", "hAnsi", "eastAsia", "cs", "asciiTheme", "hAnsiTheme", "eastAsiaTheme", "cstheme"]) {
       if (a(fonts, key) !== null) result[key] = a(fonts, key);
     }
@@ -135,6 +139,13 @@ async function readDocx(read) {
         if (num.id !== "0") Object.assign(pf, paragraphFormat(c(numberedLevel, "w", "pPr")), directParagraph);
         for (const key of Object.keys(paragraphReasons)) paragraphReasons[key] = paragraphReasons[key].filter((r) => !r.includes("번호 목록"));
       }
+      const formatSources = {};
+      // MS-OI29500 §17.3.1.13: Word는 전체 상속 계층에서 jc가 생략되면 왼쪽 정렬을 적용합니다.
+      // 계층이 불완전하거나 RTL/표 조건이 미확정이면 이 규칙으로 보충하지 않습니다.
+      if (!Object.hasOwn(pf, "alignment") && stylesDoc && !paragraphReasons.alignment.length && pf.bidirectional !== true && pf.bidirectional !== null) {
+        pf.alignment = "left";
+        formatSources.alignment = "Word 기본 정렬 규칙 (MS-OI29500 §17.3.1.13 · 전체 스타일 계층에서 정렬 생략)";
+      }
       const runs = all(p, "w", "r").filter((r) => {
         let parent = r.parentElement;
         while (parent && parent.localName !== "p") parent = parent.parentElement;
@@ -156,6 +167,10 @@ async function readDocx(read) {
           const token = format[`${key}Theme`];
           resolvedFonts[key] = token ? themeFont(token, key) : format[key] ? { name: format[key], source: "DOCX 직접 지정 또는 스타일 상속" } : null;
         }
+        for (const script of ["Hang", "Jpan", "Hans", "Hant", "Han"]) {
+          resolvedFonts[script] = format.eastAsiaTheme ? themeFont(format.eastAsiaTheme, "eastAsia", script, format.eastAsiaLanguage)
+            : format.eastAsia ? { name: format.eastAsia, source: "DOCX 직접 지정 또는 스타일 상속" } : null;
+        }
         const safeDirect = (key) => Object.hasOwn(directRun, key) || Object.hasOwn(directRun, `${key}Theme`);
         const formatReasons = {
           "font-family": (!/[!-~]/u.test(text) || safeDirect("ascii")) && (!/[\p{Script=Hangul}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text) || safeDirect("eastAsia")) ? runUncertainReasons.filter((r) => !/표 스타일|번호 목록/.test(r)) : runUncertainReasons,
@@ -165,7 +180,7 @@ async function readDocx(read) {
           fontSizePt: format.fontSizePt ?? null, fontSettings: format };
       }).filter((r) => r.text);
       const line = n(pf.line);
-      paragraphs.push({ source, index: index + 1, styleId: styleId || null, formatUncertainReasons, formatReasons: paragraphReasons,
+      paragraphs.push({ source, index: index + 1, styleId: styleId || null, formatUncertainReasons, formatReasons: paragraphReasons, formatSources,
         text: runs.map((r) => r.text).join(""), alignment: pf.alignment ?? null, bidirectional: pf.bidirectional ?? null,
         lineSpacing: line === null ? null : { value: line / ((pf.lineRule || "auto") === "auto" ? 2.4 : 20),
           unit: (pf.lineRule || "auto") === "auto" ? "percent" : "pt", rule: pf.lineRule || "auto" },

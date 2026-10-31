@@ -90,14 +90,14 @@ const documentInspector = (() => {
           }
           return;
         }
-        if (document.format === "pptx" && run.resolvedFonts) {
+        if (["pptx", "docx"].includes(document.format) && run.resolvedFonts) {
           const scriptNames = { Hang: "한글", Jpan: "일본어", Hans: "중국어 간체", Hant: "중국어 번체", latin: "기본 영문·기호", Han: "언어 미확정 한자", other: "기타 문자" };
-          for (const script of pptxScripts(run.text, fonts)) {
-            const resolved = run.resolvedFonts[script];
+          for (const script of pptxScripts(run.text, document.format === "docx" ? { altLang: fonts.eastAsiaLanguage, lang: fonts.language } : fonts)) {
+            const resolved = run.resolvedFonts[document.format === "docx" && script === "latin" ? "ascii" : script];
             const scope = `${location} (${scriptNames[script]})`;
             rows.push(resolved?.name
               ? { ...compare(scope, expected, resolved.name, fontName(expected) === fontName(resolved.name), run.text), source: resolved.source }
-              : unknown(scope, expected, `문자별 테마 글꼴(${script})·언어 또는 상속 연결을 확정할 수 없습니다. 근거: ${run.formatSources?.[script === "latin" ? "latin" : "eastAsia"] || "글꼴 지정 없음"}`, run.text));
+              : unknown(scope, expected, `문자별 테마 글꼴(${script})·언어 또는 상속 연결을 확정할 수 없습니다. 근거: ${document.format === "docx" ? fonts[script === "latin" ? "asciiTheme" : "eastAsiaTheme"] || "해당 문자 종류의 글꼴 지정 없음" : run.formatSources?.[script === "latin" ? "latin" : "eastAsia"] || "글꼴 지정 없음"}`, run.text));
           }
           return;
         }
