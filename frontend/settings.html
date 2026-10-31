@@ -31,7 +31,7 @@
         <p class="help-text">Supabase 연결 시 검사 완료 후 파일명·검사 시각·기준·결과(문서 일부 텍스트 포함)를 저장합니다. 원본 문서 파일은 저장하지 않습니다.</p>
         <section class="card criteria-section" id="spellingSection" hidden>
           <h2>맞춤법·띄어쓰기</h2>
-          <p class="help-text">이 항목은 별도의 세부 기준 설정이 필요하지 않습니다.</p>
+          <p class="help-text">별도 기준 없이 자주 틀리는 일부 한국어 표현을 규칙으로 검사합니다. 오류 부분과 수정 후보를 표시하며 원문은 변경하지 않습니다. 후보가 없어도 전체 문장을 정상으로 판정하지 않습니다. 외부 검사 서비스로 텍스트를 보내지 않습니다.</p>
         </section>
 
         <section class="card criteria-section" id="textFormatSection" hidden>
@@ -178,6 +178,7 @@
   <script src="pdf-reader.js"></script>
   <script src="pptx-styles.js"></script>
   <script src="pptx-reader.js"></script>
+  <script src="korean-proofreader.js"></script>
   <script src="document-inspector.js"></script>
   <script src="inspection-view.js"></script>
   <script src="vendor/supabase.min.js"></script>

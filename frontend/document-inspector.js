@@ -210,7 +210,14 @@ const documentInspector = (() => {
             details.push(unknown("문서 텍스트", word, document.textUncertain ? "변경 추적·자동 필드·숨긴 내용 또는 XML 분기로 최종 텍스트를 확정할 수 없습니다." : "추출되지 않은 내용이 있어 문서 전체에서 단어가 없다고 확정할 수 없습니다."));
           } else details.push(compare("추출한 문서 텍스트", word, found ? "포함" : "미포함", found));
         }
-      } else details.push(unknown("문서 전체", "맞춤법·띄어쓰기", "맞춤법·띄어쓰기 검사기는 아직 구현하지 않았습니다."));
+      } else if (id === "spelling") {
+        try {
+          details = typeof koreanProofreader !== "undefined" ? koreanProofreader.check(document)
+            : [unknown("문서 전체", "맞춤법·띄어쓰기", "한국어 규칙 검사기를 불러오지 못했습니다.")];
+        } catch {
+          details = [unknown("문서 전체", "맞춤법·띄어쓰기", "한국어 규칙 검사 중 오류가 발생했습니다. 다른 형식 검사 결과는 계속 확인할 수 있습니다.")];
+        }
+      } else details.push(unknown("문서 전체", id, "지원하지 않는 검사 항목입니다."));
       if (!details.length) details.push(unknown("문서 전체", labels[id], "비교할 텍스트·서식 또는 검사 기준이 없습니다."));
       const counts = { pass: 0, fail: 0, unknown: 0 };
       details.forEach((row) => counts[row.status]++);

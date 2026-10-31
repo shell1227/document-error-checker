@@ -60,7 +60,7 @@ async function mockApi(route) {
 }
 async function main() {
   const archive = new JSZip();
-  archive.file("word/document.xml", '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>서론 결론</w:t></w:r></w:p></w:body></w:document>');
+  archive.file("word/document.xml", '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>서론 결론. 저는 할수있어요. 내일 뵈요.</w:t></w:r></w:p></w:body></w:document>');
   const file = await archive.generateAsync({ type: "nodebuffer" });
   const presentation = new JSZip();
   presentation.file("ppt/presentation.xml", '<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldIdLst><p:sldId id="256" r:id="s1"/></p:sldIdLst></p:presentation>');
@@ -95,6 +95,7 @@ async function main() {
       await target.locator("#documentFile").setInputFiles({ name: `sample.${format}`, mimeType: "application/octet-stream", buffer: format === "pptx" ? pptxFile : format === "hwpx" ? hwpxFile : format === "pdf" ? pdfFile : file });
       await target.locator('[value="report"]').check();
       await target.locator('[value="required-words"][name="inspectionItem"]').check();
+      await target.locator('[value="spelling"][name="inspectionItem"]').check();
       await target.getByRole("button", { name: "다음", exact: true }).click();
       await target.waitForURL("**/settings.html");
       if (format === "pdf") {
@@ -113,11 +114,17 @@ async function main() {
     assert.equal(records[0].file_format, "docx");
     assert.deepEqual(records[0].criteria.requiredWords, ["서론"]);
     assert.ok(records[0].inspected_at);
+    assert.ok(records[0].result.items.some((item) => item.id === "spelling" && item.counts.unknown > 0));
+    const spelling = records[0].result.items.find((item) => item.id === "spelling");
+    assert.equal(spelling.counts.fail, 2);
+    assert.ok(spelling.details.some((row) => row.suggestion === "봬요"));
     await page.goto(`${base}/history.html`);
     await page.locator(".history-open").first().waitFor();
     await page.locator(".history-open").first().click();
     await page.locator("#historyDetail").waitFor({ state: "visible" });
     assert.ok((await page.locator("#historyCriteria").textContent()).includes("서론"));
+    assert.ok((await page.locator("#inspectionResults").textContent()).includes("수정 제안: 할 수 있어요"));
+    assert.ok((await page.locator("#inspectionResults").textContent()).includes("수정 제안: 봬요"));
     assert.ok((await page.locator("#inspectionResults").textContent()).includes("필수 단어: 기준 일치"));
     if (process.env.HISTORY_SCREENSHOT) await page.screenshot({ path: process.env.HISTORY_SCREENSHOT, fullPage: true });
     const downloaded = page.waitForEvent("download");
