@@ -87,12 +87,16 @@ const bareunProofreader = (() => {
         let data;
         try { data = await response.json(); }
         catch { throw new Error(`외부 검사 서버의 응답이 JSON 형식이 아닙니다 (HTTP ${httpStatus}). 배포 경로와 서버 함수 상태를 확인하세요.`); }
+        if (!data || typeof data !== "object") throw new Error("외부 검사 응답 형식 오류");
         if (Number.isInteger(data.providerCalls) && data.providerCalls >= 0) providerCalls = data.providerCalls;
         if (!response.ok) throw new Error(data.message || "외부 검사 서버를 사용할 수 없습니다.");
         if (!Array.isArray(data.results) || data.results.length > missing.length) throw new Error("외부 검사 응답 형식 오류");
         missing.forEach((index, j) => {
           for (const target of pending.get(batches[index].text)) results[target] = data.results[j];
-          if (data.results[j]?.ok === true) {
+          const reply = data.results[j];
+          const validFindings = Array.isArray(reply?.findings) && reply.findings.every((f) => f && typeof f.original === "string" && typeof f.suggestion === "string"
+            && Number.isInteger(f.offset) && f.offset >= 0 && batches[index].text.slice(f.offset, f.offset + f.original.length) === f.original);
+          if (reply?.ok === true && validFindings) {
             if (cache.size >= 100) cache.delete(cache.keys().next().value);
             cache.set(batches[index].text, data.results[j]);
           }

@@ -3,7 +3,7 @@ const { createHandler } = require("../frontend/api/proofread.js");
 const env = { BAREUN_API_KEY: "secret-test-key", SUPABASE_URL: "https://demo.supabase.co", SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test", BAREUN_ALLOWED_ORIGIN: "https://checker.test" };
 const body = () => ({ consent: true, requestId: crypto.randomUUID(), chunks: ["할수있다."] });
 async function main() {
-  let calls = [], quota = true, fail = false, schema = false, wrongOffset = false, clean = false, camel = false, providerStatus = 200;
+  let calls = [], quota = true, fail = false, schema = false, wrongOffset = false, clean = false, camel = false, providerStatus = 200, badShape = "";
   const fetcher = async (url, options) => {
     calls.push({ url, options });
     if (url.endsWith("/user")) return { ok: true, json: async () => ({ id: "user" }) };
@@ -11,6 +11,8 @@ async function main() {
     if (fail) throw new Error("secret-test-key should never leak");
     if (providerStatus !== 200) return { ok: false, status: providerStatus };
     const text = JSON.parse(options.body).document.content;
+    if (badShape === "null") return { ok: true, json: async () => null };
+    if (badShape === "block") return { ok: true, json: async () => ({ origin: text, revised: text + " ", revised_blocks: [null] }) };
     if (clean) return { ok: true, json: async () => ({ origin: text, revised: text }) };
     if (camel) return { ok: true, json: async () => ({ origin: text, revised: "할 수 있다.", revisedBlocks: [{ origin: { content: "할수있다", beginOffset: "0" }, revised: "할 수 있다", revisions: [{ category: "SPACING", helpId: "spacing" }] }], helps: { spacing: { comment: "띄어 씁니다." } } }) };
     return { ok: true, json: async () => schema ? {} : ({ origin: text, revised: "할 수 있다.", revised_blocks: [{ origin: { content: "할수있다", begin_offset: wrongOffset ? 90 : 0, length: 0 }, revised: "할 수 있다", revisions: [{ category: "SPACING", help_id: "spacing" }] }], helps: { spacing: { comment: "띄어 씁니다." } } }) };
@@ -73,6 +75,11 @@ async function main() {
     assert.equal(denied.data.providerCalls, 1);
     assert.equal(denied.data.results[0].providerHttpStatus, status);
   }
+  providerStatus = 200;
+  badShape = "null";
+  assert.equal((await invoke()).data.results[0].code, "provider_schema");
+  badShape = "block";
+  assert.equal((await invoke()).data.results[0].incomplete, true);
   console.log("PASS: server key isolation, auth/origin/consent/input limits, quota failure blocks API, UTF16 mapping, partial failure and no automatic retries");
 }
 main().catch((e) => { console.error(e); process.exitCode = 1; });

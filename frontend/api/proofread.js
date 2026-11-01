@@ -38,13 +38,14 @@ function createHandler(env = process.env, fetcher = fetch) {
         const data = await request("https://api.bareun.ai/bareun.RevisionService/CorrectError", {
           method: "POST", headers: { "api-key": env.BAREUN_API_KEY, "Content-Type": "application/json" },
           body: JSON.stringify({ document: { content: text, language: "ko-KR" }, encoding_type: "UTF16" }) });
-        if (data.origin !== text || typeof data.revised !== "string") throw new Error("schema");
+        if (!data || typeof data !== "object" || data.origin !== text || typeof data.revised !== "string") throw new Error("schema");
         // 오류가 없는 응답은 protobuf JSON에서 빈 배열 필드가 생략될 수 있습니다.
         const blocks = data.revised_blocks ?? data.revisedBlocks ?? [];
         if (!Array.isArray(blocks)) throw new Error("schema");
         const findings = [];
         let incomplete = false;
         for (const block of blocks.slice(0, 200)) {
+          if (!block || typeof block !== "object") { incomplete = true; continue; }
           const original = block.origin?.content;
           const suggestion = block.revised;
           let offset = block.origin?.begin_offset ?? block.origin?.beginOffset;

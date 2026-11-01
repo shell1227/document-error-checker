@@ -33,6 +33,7 @@ for (const text of ["할수있다", "할 수있다", "할수 있다", "할  수�
   assert.equal(check(doc(text)).details.find((r) => r.status === "fail").suggestion, "할 수 있다");
 }
 const repeated = check(doc("되요.\n되요."));
+assert.ok(check(doc("")).counts.unknown > 0, "빈 문서는 규칙 적용 완료 안내만으로 끝내면 안 됨");
 assert.equal(repeated.counts.fail, 2);
 assert.ok(repeated.details.some((r) => r.location.includes("2줄")));
 const uncertain = check(doc(wrong, "pdf", { textUncertain: true }));

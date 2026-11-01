@@ -19,10 +19,12 @@ const koreanProofreader = (() => {
   function check(document) {
     const rows = [];
     let processed = 0;
+    let hasText = false;
     let detected = 0;
     for (const segment of segments(document)) {
       // 문단을 이어 붙이거나 줄바꿈을 제거하여 없던 오류를 만들지 않습니다.
       const text = String(segment.text || "");
+      if (text.trim()) hasText = true;
       processed += text.length;
       // 이메일을 찾는 긴 역추적 정규식 대신 @가 있는 어절을 제외합니다.
       const protectedRanges = [...text.matchAll(/https?:\/\/[^\s]+|`[^`]*`/gu),
@@ -47,6 +49,8 @@ const koreanProofreader = (() => {
       }
     }
     rows.sort((a, b) => a.location.localeCompare(b.location, "ko") || a.offset - b.offset);
+    if (!hasText) rows.push({ status: "unknown", location: "문서 텍스트", expected: "검사할 텍스트", actual: "추출 텍스트 없음",
+      reason: "추출한 검사 대상 텍스트가 없어 맞춤법·띄어쓰기를 검사하지 못했습니다. 빈 문서 또는 미지원 텍스트인지 확인하세요." });
     rows.push({ status: "unknown", kind: "notice", location: "검사 범위", expected: "한국어 맞춤법·띄어쓰기 전체 검사", actual: "제한된 규칙만 검사",
       reason: "되요·뵈요·아니예요·일부 됬- 활용과 '할 수 있다' 형태의 일부 띄어쓰기만 확인합니다. 오류 후보가 없어도 정상 판정하지 않습니다. 문맥·고유명사·형태소·새 어휘·그 밖의 띄어쓰기는 검사 불가입니다.",
       text: "" });

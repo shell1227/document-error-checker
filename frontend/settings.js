@@ -1,9 +1,16 @@
-const setupRaw = sessionStorage.getItem("documentCheckerSetup");
 let setup = null;
 let inspectionController = null;
 let inspectionRun = 0;
-try { setup = setupRaw ? JSON.parse(setupRaw) : null; }
-catch { sessionStorage.removeItem("documentCheckerSetup"); }
+try {
+  const setupRaw = sessionStorage.getItem("documentCheckerSetup");
+  setup = setupRaw ? JSON.parse(setupRaw) : null;
+  if (setup && (typeof setup.fileName !== "string" || !["docx", "pptx", "hwpx", "pdf"].includes(setup.extension)
+    || !Array.isArray(setup.inspectionItems) || !setup.inspectionItems.length
+    || !setup.inspectionItems.every((item) => ["spelling", "font-family", "font-size", "alignment", "line-spacing", "page-count", "required-words"].includes(item)))) throw new Error("invalid setup");
+} catch {
+  setup = null;
+  try { sessionStorage.removeItem("documentCheckerSetup"); } catch { /* 저장소 접근 제한 */ }
+}
 
 const summaryFile = document.getElementById("summaryFile");
 const spellingSection = document.getElementById("spellingSection");
@@ -93,6 +100,8 @@ function showMessage(text, type = "error") {
 function clearMessage() {
   inspectionController?.abort();
   inspectionRun++;
+  criteriaForm.querySelector('button[type="submit"]').disabled = false;
+  document.getElementById("downloadInspection").disabled = true;
   settingsMessage.textContent = "";
   settingsMessage.classList.remove("success-message", "error-message");
   document.getElementById("inspectionSection").hidden = true;
@@ -380,8 +389,9 @@ criteriaForm.addEventListener("submit", async (event) => {
 
     showMessage("검사 기준이 저장되었습니다. 문서 정보를 읽고 있습니다.", "success");
     const file = await documentFileStore.load(setup?.fileId);
-    extractedDocument = await documentReader.extract(file, setup?.extension);
+    const documentData = await documentReader.extract(file, setup?.extension);
     if (run !== inspectionRun || signal.aborted) return;
+    extractedDocument = documentData;
     if (JSON.stringify(criteriaData) !== JSON.stringify(buildCriteriaData())) {
       throw new Error("문서를 읽는 동안 검사 기준이 변경되었습니다. 다시 검사 시작을 눌러주세요.");
     }
@@ -433,5 +443,5 @@ criteriaForm.addEventListener("submit", async (event) => {
   } catch (error) {
     if (run !== inspectionRun || signal.aborted) return;
     showMessage(error.message || "문서 정보를 읽지 못했습니다.");
-  } finally { button.disabled = false; }
+  } finally { if (run === inspectionRun) button.disabled = false; }
 });

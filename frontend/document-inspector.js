@@ -205,6 +205,8 @@ const documentInspector = (() => {
         }
         else if (document.format !== "pptx") details.push(unknown("문서 전체", expected, `${document.format.toUpperCase()}의 정확한 페이지 수는 실제 문서 배치가 필요합니다. 저장된 통계·구역 수를 정답으로 사용하지 않습니다.`));
         else if (!Number.isInteger(document.slideCount) || document.slideCount < 0 || criteria.lengthUnit !== "slides" ||
+          ![criteria.minLength, criteria.maxLength].every((v) => v == null || Number.isSafeInteger(v) && v >= 1) ||
+          (criteria.minLength != null && criteria.maxLength != null && criteria.minLength > criteria.maxLength) ||
           (criteria.minLength == null && criteria.maxLength == null)) details.push(unknown("문서 전체", expected, "슬라이드 수 또는 분량 기준을 확인할 수 없습니다."));
         else details.push(compare("문서 전체 (숨김 슬라이드 포함)", expected, `${document.slideCount} 슬라이드`,
           (criteria.minLength == null || document.slideCount >= criteria.minLength) && (criteria.maxLength == null || document.slideCount <= criteria.maxLength)));

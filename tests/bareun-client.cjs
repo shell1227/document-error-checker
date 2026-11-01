@@ -25,6 +25,7 @@ async function main() {
       assert.equal(r.request().headers().authorization, "Bearer test");
       assert.ok(body.chunks.length <= 10 && body.chunks.every((s) => s.length <= 1000));
       if (mode === "limited") return r.fulfill({ status: 429, contentType: "application/json", body: JSON.stringify({ message: "호출 한도에 도달했습니다." }) });
+      if (mode === "malformed") return r.fulfill({ contentType: "application/json", body: JSON.stringify({ results: body.chunks.map(() => ({ ok: true, findings: null })) }) });
       const results = body.chunks.map((text) => ({ ok: true, incomplete: false,
         findings: [...text.matchAll(/그런대|할수있어요/g)].map((m) => ({ original: m[0], suggestion: m[0] === "그런대" ? "그런데" : "할 수 있어요", offset: m.index, category: "SPACING", reason: "테스트 수정 후보" })) }));
       return r.fulfill({ contentType: "application/json", body: JSON.stringify({ provider: "bareun", results: mode === "partial" ? results.slice(0, 1) : results }) });
@@ -120,6 +121,13 @@ async function main() {
     assert.equal(partial.completedCharacters, 600);
     assert.equal(partial.segments[1].uninspected[0].start, 0);
     assert.equal(partial.segments[1].uninspected[0].end, 600);
+    mode = "malformed";
+    const callsBeforeMalformed = calls;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const status = await page.evaluate(async () => (await bareunProofreader.check({ format: "docx", paragraphs: [{ source: "본문", index: 1, text: "잘못된 응답 캐시 검증용 문장" }] })).execution.status);
+      assert.equal(status, "failed");
+    }
+    assert.equal(calls, callsBeforeMalformed + 2, "잘못된 응답을 캐시하여 재검사를 막으면 안 됨");
     mode = "ok";
     for (const [format, file] of [["docx", "document-checker-test.docx"], ["pptx", "document-checker-template.pptx"],
       ["hwpx", "document-checker-hancom.hwpx"], ["pdf", "document-checker-pdf-tests/korean.pdf"],

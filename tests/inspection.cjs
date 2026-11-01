@@ -29,6 +29,9 @@ assert.equal(item(docx(), "line-spacing", { lineSpacing: 150 }).status, "fail");
 assert.equal(item(docx({ paragraphs: [paragraph({ lineSpacing: { value: 16, unit: "pt" } })] }), "line-spacing", { lineSpacing: 160 }).status, "unknown");
 assert.equal(item(docx({ pageCount: 3 }), "page-count", { lengthUnit: "pages", minLength: 2 }).status, "unknown");
 const pptx = { format: "pptx", text: "첫 슬라이드", slides: [{ number: 1, paragraphs: [paragraph({ alignment: "ctr" })] }], slideCount: 2, textLimitations: [] };
+for (const badCriteria of [{ minLength: -1 }, { minLength: 1.5 }, { minLength: "1" }, { minLength: 5, maxLength: 2 }]) {
+  assert.equal(item(pptx, "page-count", { lengthUnit: "slides", ...badCriteria }).status, "unknown", "잘못된 PPTX 분량 기준은 비교하지 않아야 함");
+}
 assert.equal(item(pptx, "alignment", { alignment: "center" }).status, "pass");
 for (const [minLength, maxLength, status] of [[2, 2, "pass"], [3, null, "fail"], [null, 1, "fail"], [null, 2, "pass"], [2, null, "pass"]]) {
   assert.equal(item(pptx, "page-count", { lengthUnit: "slides", minLength, maxLength }).status, status);
