@@ -62,22 +62,32 @@ const bareunProofreader = (() => {
     const rows = [];
     const results = new Array(batches.length);
     let requestedCalls = 0;
+    let requestAttempts = 0, cachedBatches = 0, httpStatus = null, providerCalls = null, stage = "planning";
     let failure = "외부 검사 요청이 완료되지 않았습니다.";
     try {
       const missing = [];
       const pending = new Map();
       batches.forEach((b, i) => {
-        if (cache.has(b.text)) results[i] = cache.get(b.text);
+        if (cache.has(b.text)) { results[i] = cache.get(b.text); cachedBatches++; }
         else if (pending.has(b.text)) pending.get(b.text).push(i);
         else { pending.set(b.text, [i]); missing.push(i); }
       });
+      if (batches.length && !missing.length) stage = "cache";
       if (missing.length) {
+        stage = "authentication";
         const token = await inspectionHistory.accessToken();
         requestedCalls = missing.length;
+        stage = "request";
+        requestAttempts++;
         const response = await fetch("/api/proofread", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ consent: true, requestId: crypto.randomUUID(), chunks: missing.map((i) => batches[i].text) }),
           signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(125000)]) : AbortSignal.timeout(125000) });
-        const data = await response.json();
+        httpStatus = response.status;
+        stage = "response";
+        let data;
+        try { data = await response.json(); }
+        catch { throw new Error(`외부 검사 서버의 응답이 JSON 형식이 아닙니다 (HTTP ${httpStatus}). 배포 경로와 서버 함수 상태를 확인하세요.`); }
+        if (Number.isInteger(data.providerCalls) && data.providerCalls >= 0) providerCalls = data.providerCalls;
         if (!response.ok) throw new Error(data.message || "외부 검사 서버를 사용할 수 없습니다.");
         if (!Array.isArray(data.results) || data.results.length > missing.length) throw new Error("외부 검사 응답 형식 오류");
         missing.forEach((index, j) => {
@@ -87,10 +97,12 @@ const bareunProofreader = (() => {
             cache.set(batches[index].text, data.results[j]);
           }
         });
+        stage = "provider";
       }
     } catch (error) {
       if (signal?.aborted) throw error;
-      failure = error.message === "Failed to fetch" ? "외부 검사에 연결하지 못했습니다. 기본 규칙 검사는 유지합니다." : error.message;
+      failure = ["TimeoutError", "AbortError"].includes(error.name) ? "외부 검사 응답 대기 시간이 초과되었습니다. 기본 규칙 검사만 유지합니다."
+        : error.message === "Failed to fetch" ? "외부 검사에 연결하지 못했습니다. 기본 규칙 검사는 유지합니다." : error.message;
     }
     batches.forEach((batch, i) => {
       const result = results[i];
@@ -98,10 +110,11 @@ const bareunProofreader = (() => {
       for (const part of batch.parts) {
         const state = coverage[part.segment];
         if (ok) state.completed.push({ start: part.start, end: part.end });
-        else state.uninspected.push({ start: part.start, end: part.end, reason: result?.message || failure });
+        else state.uninspected.push({ start: part.start, end: part.end, reason: result?.message || (result ? "외부 검사 묶음의 응답 형식이 올바르지 않습니다." : stage === "provider" ? "서버가 해당 검사 묶음의 응답을 반환하지 않았습니다. 앞선 호출 실패로 중단되었을 수 있습니다." : failure) });
       }
       if (!ok) return;
       for (const finding of result.findings) {
+        if (!finding || typeof finding !== "object") { rows.push(unknown(`외부 검사 묶음 ${i + 1}`, "수정 후보의 응답 형식이 올바르지 않습니다.")); continue; }
         const { original, suggestion, offset } = finding;
         const part = batch.parts.find((p) => Number.isInteger(offset) && offset >= p.chunkStart && offset + (original?.length || 0) <= p.chunkStart + p.end - p.start);
         if (!part || typeof original !== "string" || typeof suggestion !== "string" || batch.text.slice(offset, offset + original.length) !== original) {
@@ -130,6 +143,16 @@ const bareunProofreader = (() => {
       completedCharacters: applicable.reduce((n, s) => n + s.completed.reduce((a, r) => a + r.end - r.start, 0), 0),
       excludedCharacters: coverage.filter((s) => !s.applicable).reduce((n, s) => n + s.length, 0), segments: coverage,
       plannedBatches: batches.length, completedBatches: results.filter((r) => r?.ok === true).length, requestedCalls };
+    const reasons = [...new Set(rows.filter((r) => r.status === "unknown").map((r) => r.reason))];
+    const completed = rows.coverage.completedCharacters;
+    const status = !batches.length ? "skipped" : completed === 0 ? "failed"
+      : completed < rows.coverage.totalCharacters || reasons.length ? "partial" : "completed";
+    rows.execution = { provider: "bareun", enabled: true, status, stage, requestAttempts, httpStatus,
+      providerErrors: results.filter((r) => r && r.ok !== true).map((r) => ({ code: r.code || "provider_failure", httpStatus: r.providerHttpStatus ?? null })),
+      requestedBatches: requestedCalls, cachedBatches, providerCalls: requestAttempts === 0 ? 0 : providerCalls,
+      reason: !batches.length ? "외부 검사에 보낼 한국어 포함 텍스트가 없습니다. 추출된 텍스트와 검사 대상을 확인하세요."
+        : status === "completed" ? requestAttempts ? "외부 검사 응답을 받아 결과에 반영했습니다." : "같은 탭에서 받은 응답을 재사용했습니다. 새 API 호출은 하지 않았습니다."
+          : reasons.join(" ") || failure };
     rows.push({ ...unknown("외부 검사 범위", "오류 후보가 없어도 전체 정상이라고 판정하지 않습니다. API 응답 수신 범위와 수정 해석의 불확실성은 별개입니다."), kind: "notice" });
     return rows;
   }
@@ -163,6 +186,7 @@ const bareunProofreader = (() => {
     item.status = item.counts.fail ? "fail" : "unknown";
     item.providers = ["local-rules", "bareun"];
     item.coverage = rows.coverage;
+    if (rows.execution) report.externalProofreading = rows.execution;
   }
   return { check, merge, plan };
 })();

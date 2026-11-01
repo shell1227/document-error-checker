@@ -360,6 +360,8 @@ criteriaForm.addEventListener("submit", async (event) => {
 
   const button = criteriaForm.querySelector('button[type="submit"]');
   button.disabled = true;
+  const downloadButton = document.getElementById("downloadInspection");
+  downloadButton.disabled = true;
   extractedDocument = null;
   document.getElementById("extractionSection").hidden = true;
   try {
@@ -400,6 +402,10 @@ criteriaForm.addEventListener("submit", async (event) => {
       ? json.slice(0, 100000) + "\n… 화면 표시를 줄였습니다. 전체 정보는 다운로드하세요." : json;
     document.getElementById("extractionSection").hidden = false;
     inspectionReport = documentInspector.inspect(extractedDocument, selectedItems, criteriaData);
+    inspectionReport.externalProofreading = { provider: "bareun", enabled: Boolean(criteriaData.externalProofreading),
+      status: criteriaData.externalProofreading ? "pending" : "disabled", requestAttempts: 0, providerCalls: 0,
+      reason: criteriaData.externalProofreading ? "바른 추가 검사를 진행하고 있습니다. 최종 결과는 외부 검사 후 저장됩니다."
+        : hasItem("spelling") ? "외부 검사 사용을 선택하지 않아 기본 규칙 검사만 적용했습니다." : "맞춤법·띄어쓰기 검사 항목을 선택하지 않았습니다." };
     renderInspection(inspectionReport);
     if (criteriaData.externalProofreading) {
       showMessage("기본 검사는 완료되었습니다. 동의한 텍스트의 바른 외부 검사를 진행합니다.", "success");
@@ -407,16 +413,22 @@ criteriaForm.addEventListener("submit", async (event) => {
         const rows = await bareunProofreader.check(extractedDocument, signal);
         if (run !== inspectionRun || signal.aborted) return;
         bareunProofreader.merge(inspectionReport, rows);
-      } catch {
+      } catch (error) {
         if (run !== inspectionRun || signal.aborted) return;
         const item = inspectionReport.items.find((i) => i.id === "spelling");
         item.details.push({ status: "unknown", location: "바른 외부 검사", expected: "외부 검사 완료", actual: "검사 불가", reason: "외부 검사 도구를 사용할 수 없습니다. 기본 규칙과 문서 형식 검사 결과는 유지합니다." });
         item.counts.unknown++;
         item.status = item.counts.fail ? "fail" : "unknown";
+        inspectionReport.externalProofreading = { provider: "bareun", enabled: true, status: "failed", requestAttempts: null, providerCalls: null,
+          reason: error instanceof ReferenceError ? "외부 검사 스크립트를 불러오지 못했습니다. 새로고침 후 최신 배포의 파일 로딩 상태를 확인하세요."
+            : "외부 검사 실행 또는 결과 반영 중 오류가 발생했습니다. 호출 여부를 확인하지 못했으며 기본 검사 결과만 유지합니다." };
       }
       renderInspection(inspectionReport);
     }
-    showMessage("검사가 완료되었습니다. 불일치와 검사 불가 항목을 확인하세요.", "success");
+    downloadButton.disabled = false;
+    const external = inspectionReport.externalProofreading;
+    const externalProblem = ["failed", "partial", "skipped"].includes(external.status);
+    showMessage(`검사가 완료되었습니다. ${externalProblem ? `바른 외부 검사 ${external.status === "partial" ? "일부만 완료" : external.status === "skipped" ? "생략" : "실패"}: ${external.reason}` : "불일치와 검사 불가 항목을 확인하세요."}`, externalProblem ? "error" : "success");
     inspectionSaving.save(inspectionReport, setup);
   } catch (error) {
     if (run !== inspectionRun || signal.aborted) return;

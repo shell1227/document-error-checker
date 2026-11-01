@@ -17,10 +17,19 @@ function renderInspection(report) {
   scope.className = "help-text";
   scope.textContent = report.scope + " 항목 안에 검사 불가가 하나라도 있으면 전체 정상으로 표시하지 않습니다. 불일치와 검사 불가가 함께 있을 수도 있습니다.";
   container.appendChild(scope);
+  const external = report.externalProofreading;
+  const externalState = document.createElement("p");
+  externalState.className = external && ["failed", "partial", "skipped"].includes(external.status) ? "error-message" : "help-text";
+  const externalNames = { pending: "진행 중", disabled: "사용 안 함", completed: "완료", partial: "일부 완료·확인 필요", failed: "실패", skipped: "생략" };
+  externalState.textContent = external ? `바른 외부 검사 상태: ${externalNames[external.status] || "확인 불가"} · ${external.reason}`
+    + ` · 서버 요청 시도 ${external.requestAttempts ?? "확인 불가"}회 · 바른 호출 시도 ${external.providerCalls ?? "확인 불가"}회`
+    + `${external.httpStatus ? ` · HTTP ${external.httpStatus}` : ""}${external.cachedBatches ? ` · 재사용 ${external.cachedBatches}묶음` : ""}`
+    : "바른 외부 검사 상태: 이 기록에는 실행 상태 정보가 없습니다. 외부 호출 여부를 확인하려면 새로 검사하세요.";
+  container.appendChild(externalState);
   const overview = document.createElement("div");
   overview.className = "inspection-overview";
   container.appendChild(overview);
-  if (report.items.length && report.items.every((item) => item.status === "pass")) {
+  if (report.items.length && report.items.every((item) => item.status === "pass") && (!external || ["disabled", "completed"].includes(external.status))) {
     const message = document.createElement("p");
     message.className = "inspection-pass";
     message.textContent = "선택한 검사 항목에서 오류가 발견되지 않았습니다.";

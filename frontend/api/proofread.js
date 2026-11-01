@@ -7,7 +7,7 @@ function createHandler(env = process.env, fetcher = fetch) {
   }
   return async function handler(req, res) {
     res.setHeader("Cache-Control", "no-store");
-    const send = (status, message) => res.status(status).json({ message });
+    const send = (status, message) => res.status(status).json({ message, provider: "bareun", providerCalls: 0 });
     if (req.method !== "POST") return send(405, "POST 요청만 사용할 수 있습니다.");
     const allowed = env.BAREUN_ALLOWED_ORIGIN || `https://${env.VERCEL_PROJECT_PRODUCTION_URL || ""}`;
     if (!req.headers.origin || ![allowed, `https://${env.VERCEL_URL || ""}`].includes(req.headers.origin)) return send(403, "허용된 사이트에서만 검사할 수 있습니다.");
@@ -31,8 +31,10 @@ function createHandler(env = process.env, fetcher = fetch) {
     catch { return send(503, "호출 제한 설정을 확인하지 못해 외부 검사를 중단했습니다. Supabase의 bareun-quota.sql 설정을 확인하세요."); }
     if (quota?.allowed !== true) return send(429, "외부 검사 호출 한도 또는 1분 대기 제한에 도달했습니다. 같은 요청은 자동 재시도하지 않습니다.");
     const results = [];
+    let providerCalls = 0;
     for (const text of body.chunks) {
       try {
+        providerCalls++;
         const data = await request("https://api.bareun.ai/bareun.RevisionService/CorrectError", {
           method: "POST", headers: { "api-key": env.BAREUN_API_KEY, "Content-Type": "application/json" },
           body: JSON.stringify({ document: { content: text, language: "ko-KR" }, encoding_type: "UTF16" }) });
@@ -61,13 +63,20 @@ function createHandler(env = process.env, fetcher = fetch) {
         // 부분 위치를 복원하지 못해도 전체 교정문을 '확인 필요' 제안으로 보존합니다.
         const wholeRevision = incomplete && data.revised !== text && data.revised.length <= 3000 ? data.revised : null;
         results.push({ ok: true, findings, incomplete, wholeRevision });
-      } catch {
+      } catch (error) {
         // 한 번 실패하면 나머지 호출도 멈춥니다. 응답 본문에는 키나 원본 서버 오류를 넣지 않습니다.
-        results.push({ ok: false, message: "바른 API 호출 또는 결과 해석에 실패했습니다. 키·한도·서비스 상태를 확인하세요." });
+        const status = /^\d{3}$/.test(error.message || "") ? Number(error.message) : null;
+        const code = status === 429 ? "provider_quota" : [401, 403].includes(status) ? "provider_auth"
+          : status ? "provider_http" : ["TimeoutError", "AbortError"].includes(error.name) ? "provider_timeout"
+            : error.message === "schema" || error.name === "SyntaxError" ? "provider_schema" : "provider_connection";
+        const messages = { provider_quota: "바른 서비스의 사용량 한도에 도달했습니다.", provider_auth: "바른 서비스가 API 키 또는 이용 권한을 승인하지 않았습니다.",
+          provider_http: `바른 서비스가 HTTP ${status} 오류를 반환했습니다.`, provider_timeout: "바른 서비스의 응답 대기 시간이 초과되었습니다.",
+          provider_schema: "바른 서비스의 응답 형식 또는 원문 대응을 확인하지 못했습니다.", provider_connection: "바른 서비스에 연결하지 못했습니다." };
+        results.push({ ok: false, code, providerHttpStatus: status, message: messages[code] });
         break;
       }
     }
-    return res.status(200).json({ provider: "bareun", results });
+    return res.status(200).json({ provider: "bareun", providerCalls, results });
   };
 }
 module.exports = createHandler();

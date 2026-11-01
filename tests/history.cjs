@@ -217,6 +217,8 @@ async function main() {
     await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("저장했습니다"));
     const externalRecord = records.at(-1);
     assert.equal(externalRecord.criteria.externalProofreading, true);
+    assert.equal(externalRecord.result.externalProofreading.status, "partial");
+    assert.equal(externalRecord.result.externalProofreading.requestAttempts, 1);
     assert.ok(externalRecord.result.items.find((i) => i.id === "spelling").coverage.completedCharacters > 0);
     assert.ok(externalRecord.result.items.find((i) => i.id === "spelling").details.some((r) => r.provider === "bareun" && r.suggestion === "서문" && r.status === "unknown"));
     await page.goto(`${base}/history.html`);
@@ -224,6 +226,7 @@ async function main() {
     await page.locator("#historyDetail").waitFor({ state: "visible" });
     assert.ok((await page.locator("#inspectionResults").textContent()).includes("수정 제안: 서문"));
     assert.ok((await page.locator("#inspectionResults").textContent()).includes("바른 검사 범위:"));
+    assert.ok((await page.locator("#inspectionResults").textContent()).includes("바른 외부 검사 상태: 일부 완료"));
     records[0].document_type = "assignment"; // 이전 버전에서 저장한 분류도 변경 없이 읽어야 합니다.
     const oldRecord = await page.evaluate((id) => inspectionHistory.get(id), records[0].id);
     assert.equal(oldRecord.document_type, "assignment");

@@ -51,6 +51,11 @@ async function main() {
     assert.equal(merged.coverage.totalCharacters, merged.coverage.completedCharacters);
     await inspect();
     assert.equal(calls, 1, "같은 탭·텍스트 재검사에 중복 외부 호출 발생");
+    const reused = await page.evaluate(() => inspectionReport.externalProofreading);
+    assert.equal(reused.status, "completed");
+    assert.equal(reused.requestAttempts, 0);
+    assert.equal(reused.providerCalls, 0);
+    assert.ok(reused.cachedBatches > 0);
     await page.reload();
     mode = "limited";
     await page.evaluate(() => { inspectionHistory.accessToken = async () => "test"; });
@@ -95,6 +100,17 @@ async function main() {
       return p.batches.every((b) => b.text.trim().length > 0 && b.text.length <= 1000);
     });
     assert.equal(whitespace, true);
+    for (const format of ['docx', 'pptx', 'hwpx', 'pdf']) {
+      const skipped = await page.evaluate(async (format) => {
+        const p = { source: '본문', index: 1, text: 'English only.' };
+        const doc = { format, paragraphs: [p], slides: [{ number: 1, paragraphs: [p] }], pages: [{ number: 1, text: p.text }] };
+        const rows = await bareunProofreader.check(doc);
+        return rows.execution;
+      }, format);
+      assert.equal(skipped.status, 'skipped');
+      assert.equal(skipped.requestAttempts, 0);
+      assert.equal(skipped.providerCalls, 0);
+    }
     mode = "partial";
     const partial = await page.evaluate(async () => {
       const paragraphs = ["첫째 문장 ".repeat(100), "둘째 문장 ".repeat(100)].map((text, i) => ({ source: "본문", index: i + 1, text }));
@@ -106,8 +122,9 @@ async function main() {
     assert.equal(partial.segments[1].uninspected[0].end, 600);
     mode = "ok";
     for (const [format, file] of [["docx", "document-checker-test.docx"], ["pptx", "document-checker-template.pptx"],
-      ["hwpx", "document-checker-hancom.hwpx"], ["pdf", "document-checker-pdf-tests/korean.pdf"]]) {
-      const filename = path.join(process.env.TEMP, file);
+      ["hwpx", "document-checker-hancom.hwpx"], ["pdf", "document-checker-pdf-tests/korean.pdf"],
+      ...(process.env.PPTX_PROOFREAD_SAMPLE ? [["pptx", process.env.PPTX_PROOFREAD_SAMPLE]] : [])]) {
+      const filename = path.isAbsolute(file) ? file : path.join(process.env.TEMP, file);
       if (!fs.existsSync(filename)) { console.log(`SKIP real document: ${format}`); continue; }
       const actual = await page.evaluate(async ({ bytes, format }) => {
         const doc = await documentReader.extract(new File([new Uint8Array(bytes)], `sample.${format}`), format);
