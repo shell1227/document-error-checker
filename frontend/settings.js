@@ -38,6 +38,20 @@ const alignmentInput = document.getElementById("alignment");
 const lineSpacingInput = document.getElementById("lineSpacing");
 const minLengthInput = document.getElementById("minLength");
 const maxLengthInput = document.getElementById("maxLength");
+const criteriaPreset = document.getElementById("criteriaPreset");
+
+// 프리셋은 입력 도우미입니다. 검사와 저장에는 사용자가 수정한 최종 입력값을 사용합니다.
+const criteriaPresets = {
+  basic: { fontFamily: "맑은 고딕", fontSize: 11, alignment: "left", lineSpacing: 160 },
+  large: { fontFamily: "맑은 고딕", fontSize: 12, alignment: "left", lineSpacing: 180 },
+  presentation: { fontFamily: "맑은 고딕", fontSize: 24, alignment: "left", lineSpacing: 100 }
+};
+const presetFields = [
+  { item: "font-family", key: "fontFamily", input: fontFamilyInput },
+  { item: "font-size", key: "fontSize", input: fontSizeInput },
+  { item: "alignment", key: "alignment", input: alignmentInput },
+  { item: "line-spacing", key: "lineSpacing", input: lineSpacingInput }
+];
 
 const allItems = [
   "spelling",
@@ -58,6 +72,7 @@ if (setup) {
 }
 
 const hasItem = (name) => selectedItems.includes(name);
+document.getElementById("presetSection").hidden = !presetFields.some((field) => hasItem(field.item));
 if (setup?.extension === "pdf") {
   const notice = document.getElementById("formatNotice");
   notice.hidden = false;
@@ -321,8 +336,22 @@ customWord.addEventListener("keydown", (event) => {
   }
 });
 
-criteriaForm.addEventListener("input", clearMessage);
-criteriaForm.addEventListener("change", clearMessage);
+criteriaPreset.addEventListener("change", () => {
+  const preset = criteriaPresets[criteriaPreset.value];
+  if (!preset) return; // ‘직접 입력’은 기존 값을 지우지 않습니다.
+  for (const field of presetFields) {
+    if (hasItem(field.item)) field.input.value = preset[field.key];
+  }
+  clearMessage(); // value 대입은 input/change 이벤트를 발생시키지 않습니다.
+});
+
+function criteriaChanged(event) {
+  if (event.target === criteriaPreset) return;
+  if (presetFields.some((field) => hasItem(field.item) && field.input === event.target)) criteriaPreset.value = "custom";
+  clearMessage();
+}
+criteriaForm.addEventListener("input", criteriaChanged);
+criteriaForm.addEventListener("change", criteriaChanged);
 
 backButton.addEventListener("click", () => {
   window.location.href = "index.html";
