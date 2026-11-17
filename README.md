@@ -161,6 +161,12 @@ Supabase가 설정된 경우 파일명·검사 시각·기준·상세 결과는 
 검사 취소 및 최종 기준의 sessionStorage·기록 데이터·JSON 보존을 로컬 브라우저에서 확인합니다.
 실제 바른 API나 Supabase DB는 호출하지 않습니다.
 
+프리셋의 실제 DOCX 비교도 확인하려면 `python tests/generate-preset-samples.py <임시 폴더>`로
+샘플 12개를 생성하고 `PRESET_DOCX_DIR` 환경 변수에 그 폴더 경로를 지정한 뒤
+`node tests/presets.cjs`를 실행하세요. 세 프리셋 각각의 일치·글꼴만 불일치·크기만 불일치·
+둘 다 불일치를 실제 업로드 화면에서 검증하고, 직접 수정/직접 입력 기준으로 재검사합니다.
+python-docx는 테스트 파일 생성에만 필요하며 웹 서비스의 의존성은 추가하지 않습니다.
+
 `frontend/vendor/jszip.min.js`는 DOCX/PPTX의 ZIP 압축을 읽기 위한
 [JSZip 3.10.1](https://github.com/Stuk/jszip/tree/v3.10.1)입니다.
 MIT 라이선스로 사용하며 원본 라이선스를 같은 폴더에 포함했습니다.

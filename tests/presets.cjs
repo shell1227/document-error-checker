@@ -95,6 +95,50 @@ async function main() {
     assert.equal(await page.locator("#inspectionSection").isVisible(), false);
     assert.equal(await page.getByRole("button", { name: "검사 시작", exact: true }).isDisabled(), false);
 
+    // python-docx로 생성한 완전한 DOCX 파일을 실제 화면에서 업로드하고 비교합니다.
+    if (process.env.PRESET_DOCX_DIR) {
+      for (const [preset, size] of [["basic", 11], ["large", 12], ["presentation", 24]]) {
+        for (const caseName of ["match", "font-mismatch", "size-mismatch", "both-mismatch"]) {
+          await page.goto(`${base}/index.html`);
+          await page.locator("#documentFile").setInputFiles(path.join(process.env.PRESET_DOCX_DIR, `${preset}-${caseName}.docx`));
+          for (const id of ["font-family", "font-size", "alignment", "line-spacing"]) await page.locator(`[name="inspectionItem"][value="${id}"]`).check();
+          await page.getByRole("button", { name: "다음", exact: true }).click();
+          await page.waitForURL("**/settings.html");
+          await select.selectOption(preset);
+          await page.getByRole("button", { name: "검사 시작", exact: true }).click();
+          await page.waitForFunction(() => document.getElementById("settingsMessage").textContent.includes("검사가 완료"));
+          const report = await page.evaluate(() => inspectionReport);
+          assert.equal(report.criteria.fontSize, size);
+          assert.equal(report.criteria.fontFamily, "맑은 고딕");
+          const fontMismatch = ["font-mismatch", "both-mismatch"].includes(caseName);
+          const sizeMismatch = ["size-mismatch", "both-mismatch"].includes(caseName);
+          assert.deepEqual(report.items.map((item) => item.status), [fontMismatch ? "fail" : "pass", sizeMismatch ? "fail" : "pass", "pass", "pass"], `${preset}/${caseName}`);
+          assert.ok(report.items.every((item) => item.counts.unknown === 0), `${preset}/${caseName}: 근거가 있는 값이 불필요하게 검사 불가로 처리됨`);
+          if (caseName === "match") {
+            assert.equal(await page.locator(".inspection-item").count(), 0);
+            assert.ok((await page.locator("#inspectionResults").textContent()).includes("오류가 발견되지 않았습니다"));
+            // 프리셋의 크기를 직접 바꾸면 그 최종 값으로 실제 비교해야 합니다.
+            await page.locator("#fontSize").fill(String(size + 1));
+            assert.equal(await select.inputValue(), "custom");
+            await page.getByRole("button", { name: "검사 시작", exact: true }).click();
+            await page.waitForFunction(() => document.getElementById("settingsMessage").textContent.includes("검사가 완료"));
+            assert.equal(await page.evaluate(() => inspectionReport.items.find((i) => i.id === "font-size").status), "fail");
+            // 처음부터 직접 입력한 기준도 프리셋과 동일하게 작동합니다.
+            await page.reload();
+            assert.equal(await select.inputValue(), "");
+            await page.locator("#fontFamily").fill("맑은 고딕");
+            await page.locator("#fontSize").fill(String(size));
+            await page.locator("#alignment").selectOption("left");
+            await page.locator("#lineSpacing").fill(String(report.criteria.lineSpacing));
+            await page.getByRole("button", { name: "검사 시작", exact: true }).click();
+            await page.waitForFunction(() => document.getElementById("settingsMessage").textContent.includes("검사가 완료"));
+            assert.ok(await page.evaluate(() => inspectionReport.items.every((i) => i.status === "pass")));
+          }
+          console.log(`PASS actual DOCX: ${preset}/${caseName} -> font ${fontMismatch ? "fail" : "pass"}, size ${sizeMismatch ? "fail" : "pass"}`);
+        }
+      }
+    } else console.log("SKIP actual DOCX preset matrix: PRESET_DOCX_DIR is not set");
+
     // 선택하지 않은 숨긴 서식은 건드리지 않으며 네 형식에서 동일하게 적용합니다.
     for (const extension of ["docx", "pptx", "hwpx", "pdf"]) {
       await page.evaluate((extension) => sessionStorage.setItem("documentCheckerSetup", JSON.stringify({ fileName: `sample.${extension}`, extension, inspectionItems: ["font-size"] })), extension);
