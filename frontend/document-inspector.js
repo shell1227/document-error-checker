@@ -128,6 +128,22 @@ const documentInspector = (() => {
   }
 
   function checkFormatting(id, document, list, criteria) {
+    if (criteria.formatMode === "by-role" && ["font-family", "font-size"].includes(id)) {
+      const rows = [];
+      const names = { title: "제목", subheading: "소제목·부제", body: "본문" };
+      for (const p of list) {
+        if (!p.text.trim()) continue;
+        const knownRole = Object.hasOwn(names, p.role || "");
+        const roleCriteria = knownRole ? criteria.roleFormats?.[p.role] : null;
+        if (!roleCriteria) {
+          rows.push({ ...unknown(p.location, "영역별 " + labels[id], knownRole ? `${names[p.role]}의 검사 기준이 없습니다.` : `영역 구분 불가: ${p.roleReason || "제목·소제목·본문에 대한 명시적인 구조 정보가 없습니다."}`, p.text), role: knownRole ? p.role : "unknown", roleReason: p.roleReason });
+          continue;
+        }
+        const details = checkFormatting(id, document, [{ ...p, location: `${p.location} · ${names[p.role]}` }], { ...criteria, fontFamily: roleCriteria.fontFamily, fontSize: roleCriteria.fontSize, formatMode: "uniform" });
+        rows.push(...details.map((row) => ({ ...row, role: p.role, roleReason: p.roleReason })));
+      }
+      return rows;
+    }
     if (id === "font-family") return checkFonts(document, list, criteria);
     if (document.format === "pdf" && ["alignment", "line-spacing"].includes(id)) {
       return [unknown("PDF 전체", id === "alignment" ? alignmentNames[criteria.alignment] : `${criteria.lineSpacing}%`,
@@ -230,9 +246,12 @@ const documentInspector = (() => {
       details.filter((row) => row.kind !== "notice").forEach((row) => counts[row.status]++);
       return { id, label: labels[id] || id, status: counts.fail ? "fail" : counts.unknown || id === "spelling" ? "unknown" : "pass", counts, details };
     });
-    return { fileName: document.fileName, format: document.format, criteria, items,
-      scope: document.format === "pdf" ? "PDF의 추출 가능한 텍스트 조각, 지정 글꼴 이름, 좌표 변환을 반영한 글자 크기(pt), 페이지 수를 비교합니다. 원본 문단 정렬과 % 줄 간격은 복원하지 않습니다. 읽기 순서와 OCR·그림·주석·필드에는 제한이 있으며 실제 화면 표시나 원본 편집 서식을 보장하지 않습니다."
-        : "추출 가능한 본문·표·텍스트 상자·머리글·바닥글 또는 슬라이드의 저장 서식을 비교합니다. 제목·본문을 구분하지 않으며 빈 문단·공백만 있는 글자 묶음은 제외합니다. 글꼴은 설치 여부나 실제 렌더링 결과가 아닌 문서에 지정된 이름을 비교합니다." };
+    const roleSummary = criteria.formatMode === "by-role" ? { title: 0, subheading: 0, body: 0, unknown: 0 } : null;
+    if (roleSummary) for (const p of list.filter((p) => p.text.trim())) roleSummary[Object.hasOwn(roleSummary, p.role || "") ? p.role : "unknown"]++;
+    return { fileName: document.fileName, format: document.format, criteria, items, ...(roleSummary ? { roleSummary } : {}),
+      scope: (criteria.formatMode === "by-role" ? "영역별 모드: 명시된 구조·스타일로 구분한 제목·소제목·본문의 글꼴과 크기를 비교합니다. 역할을 확정하지 못한 부분은 검사 불가로 표시합니다. " : "문서 전체 동일 기준 모드: 제목과 본문을 구분하지 않고 비교합니다. ")
+        + (document.format === "pdf" ? "PDF의 추출 가능한 텍스트 조각, 지정 글꼴 이름, 좌표 변환을 반영한 글자 크기(pt), 페이지 수를 비교합니다. 원본 문단 정렬과 % 줄 간격은 복원하지 않습니다. 읽기 순서와 OCR·그림·주석·필드에는 제한이 있으며 실제 화면 표시나 원본 편집 서식을 보장하지 않습니다."
+        : "추출 가능한 본문·표·텍스트 상자·머리글·바닥글 또는 슬라이드의 저장 서식을 비교합니다. 빈 문단·공백만 있는 글자 묶음은 제외합니다. 글꼴은 설치 여부나 실제 렌더링 결과가 아닌 문서에 지정된 이름을 비교합니다.") };
   }
   return { inspect };
 })();

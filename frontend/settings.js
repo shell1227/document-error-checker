@@ -39,6 +39,32 @@ const lineSpacingInput = document.getElementById("lineSpacing");
 const minLengthInput = document.getElementById("minLength");
 const maxLengthInput = document.getElementById("maxLength");
 const criteriaPreset = document.getElementById("criteriaPreset");
+const formatMode = document.getElementById("formatMode");
+const roleNames = { title: "제목", subheading: "소제목·부제", body: "본문" };
+const roleInputs = {};
+// 반복되는 세 영역의 입력칸은 한 번만 정의합니다. HTML 문자열로 문서 내용을 넣지 않습니다.
+for (const [role, label] of Object.entries(roleNames)) {
+  const group = document.createElement("section");
+  const heading = document.createElement("h3");
+  heading.textContent = label;
+  group.appendChild(heading);
+  roleInputs[role] = {};
+  for (const [key, caption] of [["fontFamily", "기준 글꼴"], ["fontSize", "기준 글자 크기 (pt)"]]) {
+    const field = document.createElement("label");
+    field.className = "field";
+    const title = document.createElement("span");
+    title.textContent = `${label} ${caption}`;
+    const input = document.createElement("input");
+    input.id = `${role}-${key}`;
+    input.type = key === "fontSize" ? "number" : "text";
+    if (key === "fontSize") { input.min = "1"; input.step = "0.5"; }
+    else input.setAttribute("list", "fontOptions");
+    field.append(title, input);
+    group.appendChild(field);
+    roleInputs[role][key] = input;
+  }
+  document.getElementById("roleFormatFields").appendChild(group);
+}
 
 // 프리셋은 입력 도우미입니다. 검사와 저장에는 사용자가 수정한 최종 입력값을 사용합니다.
 const criteriaPresets = {
@@ -85,6 +111,22 @@ const showTextFormat = hasItem("font-family") || hasItem("font-size");
 textFormatSection.hidden = !showTextFormat;
 fontFamilyField.hidden = !hasItem("font-family");
 fontSizeField.hidden = !hasItem("font-size");
+function updateFormatMode() {
+  const byRole = formatMode.value === "by-role" && showTextFormat;
+  document.getElementById("uniformFormatFields").hidden = byRole;
+  document.getElementById("roleFormatFields").hidden = !byRole;
+  for (const inputs of Object.values(roleInputs)) {
+    for (const [key, input] of Object.entries(inputs)) {
+      const selected = hasItem(key === "fontFamily" ? "font-family" : "font-size");
+      input.parentElement.hidden = !selected;
+      input.disabled = !byRole || !selected;
+    }
+  }
+  fontFamilyInput.disabled = byRole || !hasItem("font-family");
+  fontSizeInput.disabled = byRole || !hasItem("font-size");
+  document.getElementById("presetSection").hidden = byRole || !presetFields.some((field) => hasItem(field.item));
+}
+updateFormatMode();
 
 const showParagraph = hasItem("alignment") || hasItem("line-spacing");
 paragraphSection.hidden = !showParagraph;
@@ -175,7 +217,15 @@ function getSelectedRequiredWords() {
 }
 
 function validateCriteria() {
-  if (hasItem("font-family") && !fontFamilyInput.value.trim()) {
+  const byRole = showTextFormat && formatMode.value === "by-role";
+  if (byRole) {
+    for (const [role, inputs] of Object.entries(roleInputs)) {
+      if (hasItem("font-family") && !inputs.fontFamily.value.trim()) return { valid: false, message: `${roleNames[role]} 기준 글꼴을 입력하세요.`, field: inputs.fontFamily };
+      const size = Number(inputs.fontSize.value);
+      if (hasItem("font-size") && (!inputs.fontSize.value.trim() || !Number.isFinite(size) || size <= 0)) return { valid: false, message: `${roleNames[role]} 기준 글자 크기는 0보다 큰 값으로 입력하세요.`, field: inputs.fontSize };
+    }
+  }
+  if (!byRole && hasItem("font-family") && !fontFamilyInput.value.trim()) {
     return {
       valid: false,
       message: "기준 글꼴을 입력하세요.",
@@ -183,7 +233,7 @@ function validateCriteria() {
     };
   }
 
-  if (hasItem("font-size")) {
+  if (!byRole && hasItem("font-size")) {
     const value = fontSizeInput.value.trim();
     const fontSize = Number(value);
 
@@ -292,13 +342,23 @@ function validateCriteria() {
 
 function buildCriteriaData() {
   const criteria = {};
+  const byRole = showTextFormat && formatMode.value === "by-role";
+  if (byRole) {
+    criteria.formatMode = "by-role";
+    criteria.roleFormats = {};
+    for (const [role, inputs] of Object.entries(roleInputs)) {
+      criteria.roleFormats[role] = {};
+      if (hasItem("font-family")) criteria.roleFormats[role].fontFamily = inputs.fontFamily.value.trim();
+      if (hasItem("font-size")) criteria.roleFormats[role].fontSize = Number(inputs.fontSize.value);
+    }
+  }
   if (hasItem("spelling")) criteria.externalProofreading = document.getElementById("externalProofreading").checked;
 
-  if (hasItem("font-family")) {
+  if (!byRole && hasItem("font-family")) {
     criteria.fontFamily = fontFamilyInput.value.trim();
   }
 
-  if (hasItem("font-size")) {
+  if (!byRole && hasItem("font-size")) {
     criteria.fontSize = Number(fontSizeInput.value);
   }
 
@@ -337,6 +397,7 @@ customWord.addEventListener("keydown", (event) => {
 });
 
 criteriaPreset.addEventListener("change", () => {
+  if (formatMode.value === "by-role" && showTextFormat) return;
   const preset = criteriaPresets[criteriaPreset.value];
   if (!preset) return; // ‘직접 입력’은 기존 값을 지우지 않습니다.
   for (const field of presetFields) {
@@ -347,6 +408,7 @@ criteriaPreset.addEventListener("change", () => {
 
 function criteriaChanged(event) {
   if (event.target === criteriaPreset) return;
+  if (event.target === formatMode) updateFormatMode();
   if (presetFields.some((field) => hasItem(field.item) && field.input === event.target)) criteriaPreset.value = "custom";
   clearMessage();
 }

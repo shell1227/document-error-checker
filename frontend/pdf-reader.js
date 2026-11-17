@@ -26,7 +26,34 @@ async function readPdf(file) {
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
       const page = await pdf.getPage(pageNumber);
       try {
-        const content = await page.getTextContent();
+        const content = await page.getTextContent({ includeMarkedContent: true });
+        const roles = new Map();
+        let structureReason = "PDF 구조 태그가 없거나 텍스트와 연결되지 않았습니다.";
+        try {
+          const tree = await page.getStructTree();
+          const containers = new Set(["Root", "Document", "Part", "Sect", "Div", "NonStruct", "Span"]);
+          function visit(node, inherited = { role: "unknown", roleReason: structureReason }, depth = 0) {
+            if (!node || depth > 100) return;
+            let state = inherited;
+            if (node.role) {
+              const tag = node.role;
+              state = tag === "Title" ? { role: "title", roleReason: "PDF 구조 태그 Title" }
+                : /^H([1-6])?$/.test(tag) ? { role: "subheading", roleReason: `PDF 구조 태그 ${tag} (문서 대표 제목으로 추정하지 않음)` }
+                  : tag === "P" ? { role: "body", roleReason: "PDF 구조 태그 P" }
+                    : containers.has(tag) ? inherited : { role: "unknown", roleReason: `PDF 구조 태그 ${tag}의 영역을 확정하지 못합니다.` };
+              if (inherited.role !== "unknown" && state.role !== "unknown" && inherited.role !== state.role) state = { role: "unknown", roleReason: "중첩된 PDF 구조 태그가 서로 다른 영역을 나타냅니다." };
+            }
+            if (node.type === "content" && typeof node.id === "string") {
+              const previous = roles.get(node.id);
+              roles.set(node.id, previous && previous.role !== state.role ? { role: "unknown", roleReason: "같은 PDF 텍스트에 서로 다른 구조 태그가 연결되어 있습니다." } : state);
+            }
+            for (const child of node.children || []) visit(child, state, depth + 1);
+          }
+          visit(tree);
+        } catch { roles.clear(); structureReason = "PDF 구조 트리를 읽지 못해 영역을 구분하지 못했습니다."; }
+        const markerCounts = new Map();
+        for (const item of content.items) if (item.type === "beginMarkedContentProps" && item.id) markerCounts.set(item.id, (markerCounts.get(item.id) || 0) + 1);
+        const marked = [];
         let operators;
         try { operators = await page.getOperatorList(); } // 지정 글꼴 정보가 준비된 뒤 조회합니다.
         catch {
@@ -48,7 +75,13 @@ async function readPdf(file) {
         if ((await page.getAnnotations()).length) limitations.add(`페이지 ${pageNumber}: 주석·입력 양식의 텍스트는 검사 범위에서 제외됩니다.`);
         let pageText = "", previous = null, index = 0;
         for (const item of content.items) {
+          if (["beginMarkedContent", "beginMarkedContentProps"].includes(item.type)) { marked.push(item); continue; }
+          if (item.type === "endMarkedContent") { marked.pop(); continue; }
           if (typeof item.str !== "string") continue;
+          const marker = [...marked].reverse().find((m) => m.id);
+          const roleInfo = marked.some((m) => m.tag === "Artifact") ? { role: "unknown", roleReason: "PDF 장식·머리말·쪽 번호 등 Artifact 텍스트입니다." }
+            : marker && markerCounts.get(marker.id) > 1 ? { role: "unknown", roleReason: "PDF 구조 ID가 반복되어 해당 텍스트의 영역 연결을 확정하지 못합니다." }
+              : roles.get(marker?.id) || { role: "unknown", roleReason: structureReason };
           const style = content.styles[item.fontName];
           let font;
           try { font = page.commonObjs.get(item.fontName); } catch { /* 지정 이름이 없으면 검사 불가 */ }
@@ -79,6 +112,7 @@ async function readPdf(file) {
             fontNameKnown: Boolean(fontFamily && !fontFamily.includes("\ufffd") && !/^(g_d\d|sans-serif$|serif$|monospace$)/i.test(fontFamily) && !font?.isType3Font && !font?.isInvalidPDFjsFont),
             fontSizePt, transform: [...t], x: t[4], y: t[5], width: item.width, height: item.height };
           paragraphs.push({ source: `페이지 ${pageNumber} · 텍스트 조각`, index: ++index,
+            ...roleInfo, structureId: marker?.id || null,
             text: item.str, runs: [run], alignment: null, lineSpacing: null });
         }
         if (!pageText.trim()) limitations.add(`페이지 ${pageNumber}: 읽을 수 있는 텍스트가 없습니다. 스캔·윤곽선 글자 또는 빈 페이지일 수 있습니다.`);

@@ -29,7 +29,7 @@ async function readHwpx(read) {
     for (const sw of [...node.getElementsByTagNameNS("*", "switch")].reverse()) {
       if (!is(sw, "paragraph", "switch")) continue;
       const cases = [...sw.children].filter((e) => e.localName === "case");
-      const known = cases.find((e) => a(e, "required-namespace") === "http://www.hancom.co.kr/hwpml/2016/HwpUnitChar");
+      const known = cases.find((e) => ["http://www.hancom.co.kr/hwpml/2016/HwpUnitChar", "http://www.hancom.co.kr/hwpml/2016/paragraph"].includes(a(e, "required-namespace")));
       const selected = known || [...sw.children].find((e) => e.localName === "default");
       if (!known && cases.length) {
         textUncertain = true;
@@ -78,6 +78,25 @@ async function readHwpx(read) {
       const align = a(child(pp, "head", "align"), "horizontal");
       const spacing = child(pp, "head", "lineSpacing");
       const spacingType = a(spacing, "type");
+      const heading = child(pp, "head", "heading");
+      const rawLevel = n(a(heading, "level"));
+      const outlineLevel = a(heading, "type") === "OUTLINE" ? Number.isInteger(rawLevel) && rawLevel >= 0 && rawLevel <= 8 ? rawLevel : -1 : null;
+      const styleNames = [a(style, "name"), a(style, "engName")].filter(Boolean);
+      const roleInfo = textUncertain || !pp || (a(p, "styleIDRef") !== null && !style)
+        ? { role: "unknown", roleReason: "문단 스타일·개요 참조 또는 최종 텍스트를 확정하지 못합니다." }
+        : documentReader.styleRole(styleNames.length ? [styleNames[0]] : [], outlineLevel);
+      // 지역화된 사용자 스타일 이름보다 명시적인 영문 기본 스타일 이름이 있는 경우도 확인합니다.
+      if (!textUncertain && pp && style && outlineLevel === null && styleNames.length > 1) {
+        const english = documentReader.styleRole([styleNames[1]]);
+        if (roleInfo.role !== "unknown" && english.role !== "unknown" && roleInfo.role !== english.role) Object.assign(roleInfo, { role: "unknown", roleReason: "한글/영문 스타일 이름이 서로 다른 영역을 나타냅니다." });
+        else if (roleInfo.role === "unknown") Object.assign(roleInfo, english);
+      }
+      for (let parent = p.parentElement; parent; parent = parent.parentElement) {
+        if (["header", "footer", "footNote", "endNote", "hiddenComment", "memo", "drawText"].includes(parent.localName)) {
+          Object.assign(roleInfo, { role: "unknown", roleReason: "머리말·꼬리말·주석·글상자 등의 역할을 본문으로 추정하지 않습니다." });
+          break;
+        }
+      }
       const runs = all(p, "paragraph", "run").filter((r) => nearest(r, "p") === p).map((r) => {
         const cp = chars.get(a(r, "charPrIDRef") ?? a(style, "charPrIDRef"));
         const fontRef = child(cp, "head", "fontRef");
@@ -107,6 +126,7 @@ async function readHwpx(read) {
           charPrId: a(cp, "id"), formatUncertainReasons: cp ? [] : ["글자 서식 ID를 찾을 수 없습니다."] };
       });
       paragraphs.push({ source: `구역 ${sectionCount} (${filename})`, index: index + 1,
+        ...roleInfo, styleId: a(p, "styleIDRef"), styleName: styleNames[0] || null, outlineLevel,
         text: runs.map((r) => r.text).join(""), runs,
         formatSources: { alignment: `HWPX 문단 서식 ${a(pp, "id") ?? "누락"}${a(p, "paraPrIDRef") === null ? " · 스타일 상속" : " · 직접 참조"}`,
           lineSpacing: `HWPX 문단 서식 ${a(pp, "id") ?? "누락"} · 줄 간격 ${spacingType ?? "누락"}` },

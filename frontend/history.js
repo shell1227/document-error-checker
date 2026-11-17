@@ -11,6 +11,8 @@ const dateLabel = (value) => new Intl.DateTimeFormat("ko-KR", { dateStyle: "medi
 function showCriteria(record) {
   const criteria = record.criteria;
   const fields = [
+    ["formatMode", "서식 검사 방식", (value) => value === "by-role" ? "제목·소제목·본문별 기준" : "문서 전체 동일 기준"],
+    ["roleFormats", "영역별 글꼴·크기", (value) => Object.entries({ title: "제목", subheading: "소제목·부제", body: "본문" }).map(([role, label]) => `${label}: ${value[role]?.fontFamily ?? "글꼴 검사 안 함"} / ${value[role]?.fontSize != null ? `${value[role].fontSize}pt` : "크기 검사 안 함"}`).join(" · ")],
     ["externalProofreading", "바른 외부 검사 요청", (value) => value ? "동의하여 요청함 (실제 성공 여부는 결과 확인)" : "사용하지 않음"],
     ["fontFamily", "기준 글꼴", (value) => value],
     ["fontSize", "기준 글자 크기", (value) => `${value} pt`],

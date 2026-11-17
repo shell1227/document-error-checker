@@ -94,13 +94,21 @@ async function main() {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    async function inspect(format = "docx", target = page, external = false) {
+    async function inspect(format = "docx", target = page, external = false, byRole = false) {
       await target.goto(base);
       await target.locator("#documentFile").setInputFiles({ name: `sample.${format}`, mimeType: "application/octet-stream", buffer: format === "pptx" ? pptxFile : format === "hwpx" ? hwpxFile : format === "pdf" ? pdfFile : file });
       await target.locator('[value="required-words"][name="inspectionItem"]').check();
       await target.locator('[value="spelling"][name="inspectionItem"]').check();
+      if (byRole) for (const id of ["font-family", "font-size"]) await target.locator(`[name="inspectionItem"][value="${id}"]`).check();
       await target.getByRole("button", { name: "다음", exact: true }).click();
       await target.waitForURL("**/settings.html");
+      if (byRole) {
+        await target.locator("#formatMode").selectOption("by-role");
+        for (const [role, size] of [["title", 24], ["subheading", 16], ["body", 11]]) {
+          await target.locator(`#${role}-fontFamily`).fill("맑은 고딕");
+          await target.locator(`#${role}-fontSize`).fill(String(size));
+        }
+      }
       if (external) await target.locator("#externalProofreading").check();
       if (format === "pdf") {
         await target.locator("#customWord").fill("Introduction");
@@ -240,6 +248,18 @@ async function main() {
     await page.goto(`${base}/history.html`);
     await page.waitForFunction(() => document.getElementById("historyMessage").textContent.includes("SQL 설정"));
     mode = "ok";
+    // 영역별 기준과 구분 불가 사유도 같은 실제 SDK/모의 PostgREST 경로로 저장·조회합니다.
+    mode = "ok";
+    await inspect("docx", page, false, true);
+    await page.waitForFunction(() => document.getElementById("saveHistoryMessage").textContent.includes("저장했습니다"));
+    const roleRecord = records.at(-1);
+    assert.equal(roleRecord.criteria.roleFormats.title.fontSize, 24);
+    assert.ok(roleRecord.result.roleSummary.unknown > 0);
+    await page.goto(`${base}/history.html`);
+    await page.locator(".history-open").first().waitFor();
+    await page.evaluate((id) => openRecord(id), roleRecord.id);
+    assert.ok((await page.locator("#historyCriteria").textContent()).includes("영역별 글꼴·크기"));
+    assert.ok((await page.locator("#inspectionResults").textContent()).includes("영역 구분 불가"));
     // 설정 없음 / SDK 파일 실패 / 공개되지 않아야 할 키도 기본 검사 보존
     await context.unroute("**/supabase-config.js");
     await context.route("**/supabase-config.js", (route) => route.fulfill({ contentType: "text/javascript", body: "window.documentCheckerCloudConfig={url:'',publishableKey:''};" }));

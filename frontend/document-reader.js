@@ -13,6 +13,21 @@ const documentReader = (() => {
   const number = (value, divisor = 1) => value === null || value === "" || !Number.isFinite(Number(value)) ? null : Number(value) / divisor;
   const merge = (...objects) => Object.assign({}, ...objects.filter(Boolean));
 
+  // 서식 크기로 역할을 추측하지 않습니다. 개요 또는 명시된 스타일 이름만 사용합니다.
+  function styleRole(names, outlineLevel = null) {
+    if (outlineLevel !== null) {
+      if (Number.isInteger(outlineLevel) && outlineLevel >= 0 && outlineLevel <= 8) return { role: "subheading", roleReason: `문단 개요 수준 ${outlineLevel + 1}` };
+      if (outlineLevel !== 9) return { role: "unknown", roleReason: "문단 개요 수준이 올바르지 않습니다." };
+    }
+    for (const [index, name] of names.entries()) {
+      const key = String(name || "").trim().toLowerCase().replace(/[\s_-]/g, "");
+      if (["title", "제목"].includes(key)) return { role: "title", roleReason: `제목 스타일 '${name}'${index ? " 상속" : ""}` };
+      if (/^(heading|제목|개요|outline)[1-9]$/.test(key) || ["subtitle", "부제", "소제목"].includes(key)) return { role: "subheading", roleReason: `소제목·부제 스타일 '${name}'${index ? " 상속" : ""}` };
+      if (index === 0 && ["normal", "body", "bodytext", "본문", "바탕글"].includes(key)) return { role: "body", roleReason: `본문 스타일 '${name}'` };
+    }
+    return { role: "unknown", roleReason: "제목·소제목·본문을 명시하는 스타일 또는 개요 근거가 없습니다." };
+  }
+
   async function xml(zip, path, budget, required = false) {
     const entry = zip.file(path);
     if (!entry) {
@@ -67,5 +82,5 @@ const documentReader = (() => {
     if (!result) throw new Error("지원하지 않는 파일 형식입니다.");
     return { fileName: file.name, format: extension, ...result };
   }
-  return { extract, children, child, all, attr, number, merge };
+  return { extract, children, child, all, attr, number, merge, styleRole };
 })();

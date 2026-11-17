@@ -59,6 +59,8 @@ async function readDocx(read) {
     const result = {};
     const alignment = c(properties, "w", "jc");
     if (alignment) result.alignment = a(alignment, "val");
+    const outline = c(properties, "w", "outlineLvl");
+    if (outline) result.outlineLevel = n(a(outline, "val")) ?? -1;
     const bidi = c(properties, "w", "bidi");
     if (bidi) result.bidirectional = a(bidi, "val") === null || ["1", "true", "on"].includes(a(bidi, "val")) ? true : ["0", "false", "off"].includes(a(bidi, "val")) ? false : null;
     const spacing = c(properties, "w", "spacing");
@@ -180,7 +182,12 @@ async function readDocx(read) {
           fontSizePt: format.fontSizePt ?? null, fontSettings: format };
       }).filter((r) => r.text);
       const line = n(pf.line);
+      const styleNames = [...chain].reverse().map((s) => a(c(s, "w", "name"), "val") || a(s, "styleId"));
+      const roleInfo = incompleteStyle(styleId) || source !== "word/document.xml" || hasAncestor(p, "txbxContent") || formatUncertainReasons.some((r) => r.includes("변경 추적"))
+        ? { role: "unknown", roleReason: "스타일 연결·변경 추적 또는 머리글·바닥글·텍스트 상자의 역할을 확정하지 못합니다." }
+        : documentReader.styleRole(styleNames, pf.outlineLevel ?? null);
       paragraphs.push({ source, index: index + 1, styleId: styleId || null, formatUncertainReasons, formatReasons: paragraphReasons, formatSources,
+        ...roleInfo, styleName: styleNames[0] || null, styleNames, outlineLevel: pf.outlineLevel ?? null,
         text: runs.map((r) => r.text).join(""), alignment: pf.alignment ?? null, bidirectional: pf.bidirectional ?? null,
         lineSpacing: line === null ? null : { value: line / ((pf.lineRule || "auto") === "auto" ? 2.4 : 20),
           unit: (pf.lineRule || "auto") === "auto" ? "percent" : "pt", rule: pf.lineRule || "auto" },

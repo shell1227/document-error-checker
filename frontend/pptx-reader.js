@@ -19,11 +19,14 @@ async function readPptx(read) {
     }
     const paragraphs = all(slide, "a", "p").map((p, index) => {
       const state = styles.forParagraph(p);
+      const type = state.placeholderType;
+      const role = ["title", "ctrTitle"].includes(type) ? "title" : type === "subTitle" ? "subheading" : type === "body" || type === "obj" && state.inheritedBodyRole ? "body" : "unknown";
       const runs = [...p.children].filter((node) => ["r", "fld", "br"].includes(node.localName)).map((r) => {
         return { text: r.localName === "br" ? "\n" : c(r, "a", "t")?.textContent || "",
           ...styles.forRun(state, r) };
       });
       return { index: index + 1, text: runs.map((r) => r.text).join(""), level: state.level,
+        role, roleReason: role === "unknown" ? "제목·부제·본문 자리 표시자가 아닌 텍스트 상자/표/개체입니다. 들여쓰기 수준으로 역할을 추정하지 않습니다." : `슬라이드 자리 표시자 '${type}'${type === "subTitle" ? " (부제를 소제목 기준으로 검사)" : type === "obj" ? " · 레이아웃과 본문 마스터 연결 확인" : ""}`,
         placeholderType: state.placeholderType, placeholderIndex: state.placeholderIndex,
         alignment: state.paragraph.alignment ?? null, formatSources: state.sources,
         declaredLineSpacing: state.paragraph.lineSpacing ?? null,

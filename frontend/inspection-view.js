@@ -29,6 +29,12 @@ function renderInspection(report) {
   const overview = document.createElement("div");
   overview.className = "inspection-overview";
   container.appendChild(overview);
+  if (report.roleSummary) {
+    const roles = document.createElement("p");
+    const r = report.roleSummary;
+    roles.textContent = `영역별 기준 적용: 제목 ${r.title} · 소제목·부제 ${r.subheading} · 본문 ${r.body} · 구분 불가 ${r.unknown} (문단 또는 PDF 텍스트 조각 수). 역할은 크기나 위치로 추정하지 않습니다.`;
+    overview.appendChild(roles);
+  }
   if (report.items.length && report.items.every((item) => item.status === "pass") && (!external || ["disabled", "completed"].includes(external.status))) {
     const message = document.createElement("p");
     message.className = "inspection-pass";
@@ -69,9 +75,10 @@ function renderInspection(report) {
     for (const row of sorted.slice(0, 200)) {
       const li = document.createElement("li");
       const text = row.text ? ` · 텍스트: ${row.text.slice(0, 100)}` : "";
+      const role = row.role ? ` · 영역: ${({ title: "제목", subheading: "소제목·부제", body: "본문", unknown: "구분 불가" })[row.role]}${row.roleReason ? ` · 영역 근거: ${row.roleReason}` : ""}` : "";
       li.textContent = item.id === "spelling" && row.suggestion
         ? `[${row.status === "fail" ? "수정 후보" : "검사 불가"}] ${row.location} · 원문: ${row.actual} → 수정 제안: ${row.suggestion} · 사유: ${row.reason}${text}`
-        : `[${names[row.status]}] ${row.location} · 기준: ${row.expected} · 추출: ${row.actual}${row.reason ? ` · 사유: ${row.reason}` : ""}${row.source ? ` · 근거: ${sourceLabel(row.source)}` : ""}${text}`;
+        : `[${names[row.status]}] ${row.location} · 기준: ${row.expected} · 추출: ${row.actual}${row.reason ? ` · 사유: ${row.reason}` : ""}${row.source ? ` · 근거: ${sourceLabel(row.source)}` : ""}${role}${text}`;
       list.appendChild(li);
     }
     disclosure.appendChild(list);

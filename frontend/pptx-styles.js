@@ -164,7 +164,8 @@ async function readPptxStyles(read, presentation, slidePath, slide) {
     if (shape?.localName === "sp") applyShape(state, shape, level, `${slidePath}/shape`, false);
     else applyList(state, c(body, "a", "lstStyle"), level, `${slidePath}/textBody/lstStyle`);
     applyParagraph(state, pp, `${slidePath}/pPr`);
-    return { ...state, level, placeholderType: ph ? type : null, placeholderIndex: ph ? a(ph, "idx") || "0" : null };
+    return { ...state, level, placeholderType: ph ? type : null, placeholderIndex: ph ? a(ph, "idx") || "0" : null,
+      inheritedBodyRole: Boolean(ph && layoutShape && masterShape && a(placeholder(masterShape), "type") === "body") };
   }
 
   function forRun(state, r) {
