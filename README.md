@@ -1,6 +1,8 @@
 # document-error-checker
 문서의 오탈자와 양식 오류를 자동 검사하는 웹 서비스
 
+최신 검증 범위·실제 API/DB 연결 결과·남은 한계는 [최종 제출 점검 결과](tests/RELEASE_REVIEW.md)를 참고하세요.
+
 ## 현재 구현
 
 - 첫 화면에서 DOCX/PPTX/HWPX/PDF와 검사 항목 선택

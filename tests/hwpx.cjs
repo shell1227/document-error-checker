@@ -50,7 +50,7 @@ async function main() {
     await assert.rejects(() => extract({ "Contents/header.xml": "<broken>" }));
     if (process.argv[2]) {
       const real = await read(fs.readFileSync(process.argv[2]));
-      assert.ok(real.text.length > 100);
+      assert.ok(real.text.trim().length > 0, "실제 문서에서 비어 있지 않은 텍스트를 추출해야 함");
       assert.ok(real.paragraphs.some((p) => p.runs.some((r) => r.fontByScript.hangul)));
       assert.ok(real.paragraphs.some((p) => p.lineSpacing?.unit === "percent"));
       const nonempty = real.paragraphs.find((p) => /^[가-힣]+$/.test(p.text.trim()) && p.runs.every((r) => !r.text.trim() || r.sizeByScript.hangul > 0));

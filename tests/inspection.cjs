@@ -24,6 +24,12 @@ assert.equal(item(partial, "font-size", { fontSize: 10 }).status, "unknown");
 assert.equal(item(docx(), "alignment", { alignment: "justify" }).status, "pass");
 assert.equal(item(docx(), "alignment", { alignment: "left" }).status, "fail");
 assert.equal(item(docx({ paragraphs: [paragraph({ alignment: "start" })] }), "alignment", { alignment: "left" }).status, "unknown");
+for (const invalid of ["constructor", "__proto__"]) {
+  assert.equal(item(docx({ paragraphs: [paragraph({ alignment: invalid })] }), "alignment", { alignment: "left" }).status, "unknown");
+  assert.equal(item(docx(), "alignment", { alignment: invalid }).status, "unknown");
+  const pdf = { format: "pdf", text: "text", paragraphs: [paragraph({ text: "text", runs: [run("text", { fontNameKnown: true, fontFamily: "Arial" })] })] };
+  assert.equal(item(pdf, "font-family", { fontFamily: invalid }).status, "fail", "특수한 이름도 예외 없이 문자열로 비교해야 함");
+}
 assert.equal(item(docx(), "line-spacing", { lineSpacing: 160 }).status, "pass");
 assert.equal(item(docx(), "line-spacing", { lineSpacing: 150 }).status, "fail");
 assert.equal(item(docx({ paragraphs: [paragraph({ lineSpacing: { value: 16, unit: "pt" } })] }), "line-spacing", { lineSpacing: 160 }).status, "unknown");

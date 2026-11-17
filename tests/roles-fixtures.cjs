@@ -27,9 +27,9 @@ function hwpx(unknown = false) {
     "Contents/section0.xml": `<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hp="${hp}">${[0, 1, 2, ...(unknown ? [3] : [])].map((i) => `<hp:p styleIDRef="${i}"><hp:run><hp:t>${["문서 제목", "소제목", "본문 내용", "임의 문단"][i]}</hp:t></hp:run></hp:p>`).join("")}</hs:sec>`
   };
 }
-function pdf(unknown = false, tagged = true, conflict = false) {
+function pdf(unknown = false, tagged = true, conflict = false, prominent = false, wrongTitle = false) {
   const texts = ["Document Title", "Section Heading", "Body text", ...(unknown ? ["Unknown text"] : [])];
-  let stream = texts.map((text, i) => `${tagged && i < 3 ? `/${["Title", "H1", "P"][i]} << /MCID ${i} >> BDC` : ""} BT /F${Math.min(i + 1, 3)} ${[24, 16, 11, 11][i]} Tf 30 ${450 - i * 60} Td (${text}) Tj ET ${tagged && i < 3 ? "EMC" : ""}`).join("\n");
+  let stream = texts.map((text, i) => `${tagged && i < 3 ? `/${["Title", "H1", "P"][i]} << /MCID ${i} >> BDC` : ""} BT /F${i === 0 && wrongTitle ? 3 : Math.min(i + 1, 3)} ${[wrongTitle ? 26 : 24, 16, 11, prominent ? 60 : 11][i]} Tf 30 ${450 - i * 60} Td (${text}) Tj ET ${tagged && i < 3 ? "EMC" : ""}`).join("\n");
   if (conflict) stream += '\n/P << /MCID 2 >> BDC BT /F3 11 Tf 30 200 Td (Repeated content) Tj ET EMC';
   const objects = [
     `<< /Type /Catalog /Pages 2 0 R ${tagged ? "/StructTreeRoot 8 0 R /MarkInfo << /Marked true >>" : ""} >>`,

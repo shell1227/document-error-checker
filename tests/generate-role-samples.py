@@ -49,4 +49,15 @@ set_text(slide.shapes.title, "다음 슬라이드 제목", "맑은 고딕", 24)
 body = next(p for p in slide.placeholders if p.placeholder_format.type == PP_PLACEHOLDER.OBJECT)
 set_text(body, "본문 내용", "굴림", 11)
 prs.save(folder / "roles-office.pptx")
+for role, style_name, size in [("title", "Title", 24), ("subheading", "Heading 1", 16), ("body", "Normal", 11)]:
+    changed = Document(folder / "roles-office.docx")
+    style = changed.styles[style_name]
+    style.font.name = "돋움"
+    style.font.size = Pt(size + 2)
+    style.element.rPr.rFonts.set(qn("w:eastAsia"), "돋움")
+    changed.save(folder / f"roles-office-{role}-mismatch.docx")
+    changed_slides = Presentation(folder / "roles-office.pptx")
+    shape = changed_slides.slides[0].shapes.title if role == "title" else changed_slides.slides[0].placeholders[1] if role == "subheading" else next(p for p in changed_slides.slides[1].placeholders if p.placeholder_format.type == PP_PLACEHOLDER.OBJECT)
+    set_text(shape, shape.text, "돋움", size + 2)
+    changed_slides.save(folder / f"roles-office-{role}-mismatch.pptx")
 print(f"Created role samples: {folder}")

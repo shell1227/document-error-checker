@@ -6,10 +6,11 @@ const documentInspector = (() => {
     "required-words": "필수 단어", spelling: "맞춤법·띄어쓰기"
   };
   const alignmentNames = { left: "왼쪽 정렬", center: "가운데 정렬", right: "오른쪽 정렬", justify: "양쪽 정렬" };
+  const alignmentName = (value) => Object.hasOwn(alignmentNames, value || "") ? alignmentNames[value] : null;
   const aliases = { "맑은 고딕": "malgun gothic", "굴림": "gulim", "돋움": "dotum", "바탕": "batang", "나눔고딕": "nanumgothic" };
   const fontName = (name) => {
     const key = name.normalize("NFC").trim().toLowerCase();
-    return aliases[key] || key;
+    return Object.hasOwn(aliases, key) ? aliases[key] : key;
   };
   const equalNumber = (left, right) => Math.abs(left - right) < 0.001;
   const validNumber = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
@@ -24,7 +25,7 @@ const documentInspector = (() => {
       timesnewromanpsmt: "timesnewroman", timesnewromanpsboldmt: "timesnewroman", timesnewromanpsitalicmt: "timesnewroman", timesnewromanpsbolditalicmt: "timesnewroman",
       courierbold: "courier", courieroblique: "courier", courierboldoblique: "courier",
       malgungothicbold: "malgungothic", "맑은고딕": "malgungothic" };
-    return known[compact] || compact;
+    return Object.hasOwn(known, compact) ? known[compact] : compact;
   }
 
   function paragraphs(document) {
@@ -146,13 +147,13 @@ const documentInspector = (() => {
     }
     if (id === "font-family") return checkFonts(document, list, criteria);
     if (document.format === "pdf" && ["alignment", "line-spacing"].includes(id)) {
-      return [unknown("PDF 전체", id === "alignment" ? alignmentNames[criteria.alignment] : `${criteria.lineSpacing}%`,
+      return [unknown("PDF 전체", id === "alignment" ? alignmentName(criteria.alignment) : `${criteria.lineSpacing}%`,
         "PDF 좌표만으로 원본 문단의 정렬이나 % 줄 간격을 정확히 복원할 수 없습니다.")];
     }
     const rows = [];
     for (const p of list) {
       if (!p.text.trim()) continue;
-      const expected = id === "font-size" ? `${criteria.fontSize} pt` : id === "alignment" ? alignmentNames[criteria.alignment] : `${criteria.lineSpacing}%`;
+      const expected = id === "font-size" ? `${criteria.fontSize} pt` : id === "alignment" ? alignmentName(criteria.alignment) : `${criteria.lineSpacing}%`;
       if (id === "font-size") {
         p.runs.forEach((run, index) => {
           if (!run.text.trim()) return;
@@ -183,7 +184,7 @@ const documentInspector = (() => {
         const map = document.format !== "pptx"
           ? { left: "left", center: "center", right: "right", both: "justify" }
           : { l: "left", ctr: "center", r: "right", just: "justify" };
-        const actual = map[p.alignment] || (document.format === "docx" && typeof p.bidirectional === "boolean"
+        const actual = Object.hasOwn(map, p.alignment || "") ? map[p.alignment] : (document.format === "docx" && typeof p.bidirectional === "boolean"
           ? p.alignment === "start" ? p.bidirectional ? "right" : "left" : p.alignment === "end" ? p.bidirectional ? "left" : "right" : null : null);
         rows.push({ ...(actual && expected
           ? compare(p.location, expected, alignmentNames[actual], actual === criteria.alignment, p.text)
